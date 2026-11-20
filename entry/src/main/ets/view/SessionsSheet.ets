@@ -325,11 +325,26 @@ export struct SessionsSheet {
   @Builder
   TopBar() {
     Row() {
+      Column() {
+        Text('‹')
+          .fontSize(30)
+          .fontColor(this.palette.textPrimary)
+      }
+      .width(36)
+      .height(40)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .onClick(() => {
+        this.onClose();
+      })
+
       Text(translate(this.lang, 'session.title'))
         .fontSize(FONT_TITLE)
         .fontWeight(FontWeight.Bold)
         .fontColor(this.palette.textPrimary)
         .layoutWeight(1)
+        .margin({ left: SPACE_XS })
+
       Text(`＋ ${translate(this.lang, 'session.new')}`)
         .fontSize(FONT_MD)
         .fontColor(this.palette.accent)
@@ -340,7 +355,7 @@ export struct SessionsSheet {
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)
-    .padding({ left: SPACE_LG, right: SPACE_LG, top: SPACE_LG, bottom: SPACE_MD })
+    .padding({ left: SPACE_SM, right: SPACE_LG, top: SPACE_LG, bottom: SPACE_MD })
   }
 
   @Builder
