@@ -14,3 +14,12 @@
 # Local build sandbox: hvigor caches redirected into the workspace by scripts/build.ps1
 /.buildhome
 /.buildlog.txt
+
+# Signing material. A private key or a Huawei-issued profile must never reach a remote:
+# anyone holding the .p12 can publish apps as you.
+*.p12
+*.cer
+*.p7b
+*.csr
+*.keystore
+/signing/
