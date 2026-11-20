@@ -1,0 +1,28 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "DSH Mobile entry module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "DeepSeek Harness for HarmonyOS"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "DSH Mobile"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "Talk to the DeepSeek model API and fetch web pages you ask about"
+    },
+    {
+      "name": "permission_mic_reason",
+      "value": "Dictate messages with the microphone"
+    },
+    {
+      "name": "permission_network_reason",
+      "value": "Check whether a network connection is available before sending"
+    }
+  ]
+}
