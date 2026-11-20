@@ -237,6 +237,43 @@ export class MemoryStore {
     MemoryStore.persist([]);
   }
 
+  /** How many remembered facts came from one conversation. */
+  static countFromSession(sessionId: string): number {
+    const entries: Array<MemoryEntry> = MemoryStore.all();
+    let count: number = 0;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].sourceSession === sessionId) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Delete every fact that came from one conversation.
+   *
+   * @returns how many entries were removed
+   */
+  static removeFromSession(sessionId: string): number {
+    if (sessionId.length === 0) {
+      return 0;
+    }
+    const entries: Array<MemoryEntry> = MemoryStore.all();
+    const next: Array<MemoryEntry> = [];
+    let removed: number = 0;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].sourceSession === sessionId) {
+        removed++;
+      } else {
+        next.push(entries[i]);
+      }
+    }
+    if (removed > 0) {
+      MemoryStore.persist(next);
+    }
+    return removed;
+  }
+
   /** Facts matching a query, best first, for the `recall` tool. */
   /**
    * How well one entry answers a query.

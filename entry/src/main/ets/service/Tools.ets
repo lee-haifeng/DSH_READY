@@ -446,6 +446,10 @@ export class ToolRunner {
         keywords.push((value as string).trim());
       }
     }
+    if (ctx.session.memoryExcluded === true) {
+      return fail('This conversation is marked private, so nothing is saved to long-term memory. '
+        + 'Answer without storing the fact, and tell the user if it matters.', 'private chat');
+    }
     const entry: MemoryEntry | undefined = MemoryStore.add(text, ctx.session.id, keywords);
     if (entry === undefined) {
       return fail('The memory was empty after trimming.', 'empty');

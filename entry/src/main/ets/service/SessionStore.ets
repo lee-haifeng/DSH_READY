@@ -174,6 +174,9 @@ export class SessionStore {
     if (raw.memoryUpto !== undefined && raw.memoryUpto !== null) {
       session.memoryUpto = raw.memoryUpto;
     }
+    if (raw.memoryExcluded === true) {
+      session.memoryExcluded = true;
+    }
     return session;
   }
 
@@ -205,7 +208,8 @@ export class SessionStore {
       createdAt: session.createdAt,
       messageCount: session.messages.length,
       preview: session.preview.length > 0 ? session.preview : previewOf(session.messages),
-      goalPhase: session.goal === undefined ? '' : session.goal.phase
+      goalPhase: session.goal === undefined ? '' : session.goal.phase,
+      memoryExcluded: session.memoryExcluded === true
     };
     let replaced: boolean = false;
     const next: Array<SessionSummary> = [];
@@ -299,7 +303,8 @@ export class SessionStore {
         createdAt: session.createdAt,
         messageCount: session.messages.length,
         preview: session.preview.length > 0 ? session.preview : previewOf(session.messages),
-        goalPhase: session.goal === undefined ? '' : session.goal.phase
+        goalPhase: session.goal === undefined ? '' : session.goal.phase,
+        memoryExcluded: session.memoryExcluded === true
       };
       rows.push(summary);
     }

@@ -332,6 +332,10 @@ struct Index {
     if (session.id.length === 0 || apiKey.length === 0) {
       return;
     }
+    // A private conversation never contributes to long-term memory.
+    if (session.memoryExcluded === true) {
+      return;
+    }
     const upto: number = session.memoryUpto === undefined ? 0 : session.memoryUpto;
     // Wait for a few new messages so one small request covers more ground.
     if (session.messages.length - upto < 4) {

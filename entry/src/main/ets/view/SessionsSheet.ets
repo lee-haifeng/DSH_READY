@@ -20,6 +20,7 @@ import {
 import { KEY_ACTIVE_SESSION, KEY_LANG, KEY_PALETTE, KEY_SESSION_REVISION } from '../common/StateKeys';
 import { ChatSession, SessionSummary } from '../model/Types';
 import { SearchHit, SessionStore } from '../service/SessionStore';
+import { MemoryStore } from '../service/MemoryStore';
 import { translate } from '../i18n/Strings';
 import { formatSessionTime } from '../common/Utils';
 
@@ -78,6 +79,8 @@ interface SessionRow {
   snippet: string;
   /** 是否有进行中的目标（goalPhase 非空且不是 complete）。 */
   goalActive: boolean;
+  /** 私密会话：不参与长期记忆。 */
+  memoryExcluded: boolean;
 }
 
 @Component
@@ -103,6 +106,8 @@ export struct SessionsSheet {
   @State menuId: string = '';
   /** 操作菜单顶部展示的会话标题。 */
   @State menuTitle: string = '';
+  /** 操作菜单对应的会话是否私密。 */
+  @State menuExcluded: boolean = false;
 
   aboutToAppear(): void {
     this.load();
@@ -169,7 +174,8 @@ export struct SessionsSheet {
       preview: '',
       time: 0,
       snippet: '',
-      goalActive: false
+      goalActive: false,
+      memoryExcluded: false
     };
     return row;
   }
@@ -187,7 +193,8 @@ export struct SessionsSheet {
       preview: preview,
       time: summary.updatedAt,
       snippet: snippet,
-      goalActive: phase.length > 0 && phase !== GOAL_PHASE_COMPLETE
+      goalActive: phase.length > 0 && phase !== GOAL_PHASE_COMPLETE,
+      memoryExcluded: summary.memoryExcluded === true
     };
     return row;
   }
@@ -261,11 +268,24 @@ export struct SessionsSheet {
   private openMenu(row: SessionRow): void {
     this.menuId = row.id;
     this.menuTitle = this.rowTitle(row);
+    this.menuExcluded = row.memoryExcluded;
   }
 
   private closeMenu(): void {
     this.menuId = '';
     this.menuTitle = '';
+    this.menuExcluded = false;
+  }
+
+  /** 切换「私密会话」：私密会话既不提炼记忆，也不允许模型保存事实。 */
+  private togglePrivate(id: string): void {
+    const session: ChatSession | undefined = SessionStore.load(id);
+    if (session === undefined) {
+      return;
+    }
+    session.memoryExcluded = session.memoryExcluded !== true;
+    SessionStore.save(session);
+    this.load();
   }
 
   /** 进入重命名：把当前标题读进输入框。 */
@@ -296,7 +316,7 @@ export struct SessionsSheet {
     this.load();
   }
 
-  /** 删除前弹系统确认框，确认后才删。 */
+  /** 删除前弹系统确认框，确认后才删；若该会话产生过记忆，再问一次是否一并清除。 */
   private async requestDelete(id: string): Promise<void> {
     let confirmed: boolean = false;
     try {
@@ -312,10 +332,31 @@ export struct SessionsSheet {
     } catch (error) {
       confirmed = false;
     }
-    if (confirmed) {
-      SessionStore.remove(id);
-      this.load();
+    if (!confirmed) {
+      return;
     }
+    const memoryCount: number = MemoryStore.countFromSession(id);
+    let purgeMemories: boolean = false;
+    if (memoryCount > 0) {
+      try {
+        const purge = await this.getUIContext().getPromptAction().showDialog({
+          title: translate(this.lang, 'settings.memory'),
+          message: `${translate(this.lang, 'session.delete.purgeConfirm')} (${memoryCount})`,
+          buttons: [
+            { text: translate(this.lang, 'session.delete.keep'), color: this.palette.textSecondary },
+            { text: translate(this.lang, 'session.delete.purge'), color: this.palette.danger }
+          ]
+        });
+        purgeMemories = purge.index === 1;
+      } catch (error) {
+        purgeMemories = false;
+      }
+    }
+    if (purgeMemories) {
+      MemoryStore.removeFromSession(id);
+    }
+    SessionStore.remove(id);
+    this.load();
   }
 
   // -------------------------------------------------------------------------
@@ -501,6 +542,15 @@ export struct SessionsSheet {
                 .borderRadius(GOAL_DOT_SIZE / 2)
                 .margin({ left: SPACE_XS })
             }
+            if (row.memoryExcluded) {
+              Text(translate(this.lang, 'session.private.badge'))
+                .fontSize(FONT_XS)
+                .fontColor(this.palette.warning)
+                .padding({ left: 5, right: 5, top: 1, bottom: 1 })
+                .backgroundColor(this.palette.surfaceAlt)
+                .borderRadius(4)
+                .margin({ left: SPACE_XS })
+            }
           }
           .width('100%')
           .alignItems(VerticalAlign.Center)
@@ -603,6 +653,23 @@ export struct SessionsSheet {
           .padding({ left: SPACE_LG, right: SPACE_LG })
           .onClick(() => {
             this.startRename(this.menuId);
+          })
+        Divider()
+          .strokeWidth(1)
+          .color(this.palette.border)
+        Text(this.menuExcluded
+          ? translate(this.lang, 'session.private.off')
+          : translate(this.lang, 'session.private.on'))
+          .fontSize(FONT_BODY)
+          .fontColor(this.menuExcluded ? this.palette.warning : this.palette.textPrimary)
+          .width('100%')
+          .height(MENU_ITEM_HEIGHT)
+          .textAlign(TextAlign.Start)
+          .padding({ left: SPACE_LG, right: SPACE_LG })
+          .onClick(() => {
+            const id: string = this.menuId;
+            this.closeMenu();
+            this.togglePrivate(id);
           })
         Divider()
           .strokeWidth(1)

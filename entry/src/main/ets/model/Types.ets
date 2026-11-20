@@ -133,6 +133,11 @@ export interface ChatSession {
   preview: string;
   /** How many messages the memory extractor has already processed. */
   memoryUpto?: number;
+  /**
+   * When true this conversation neither feeds long-term memory nor lets the model save
+   * facts from it: a private chat stays private.
+   */
+  memoryExcluded?: boolean;
 }
 
 /** Lightweight row used by the session list so listing does not parse every message. */
@@ -144,6 +149,8 @@ export interface SessionSummary {
   messageCount: number;
   preview: string;
   goalPhase: string;
+  /** Mirrors `ChatSession.memoryExcluded` so the list can badge private chats. */
+  memoryExcluded?: boolean;
 }
 
 /** Persisted user preferences. */
