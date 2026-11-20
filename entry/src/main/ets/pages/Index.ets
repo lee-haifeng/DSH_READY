@@ -6,6 +6,7 @@
  * dedicated fields so a long answer never re-renders the committed message list.
  */
 
+import { window } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import {
   DARK, FONT_BODY, FONT_HERO, FONT_MD, FONT_SM, FONT_TITLE, FONT_XS, Palette, RADIUS_LG, RADIUS_MD,
@@ -89,17 +90,23 @@ struct Index {
   @State askOptions: Array<string> = [];
   @State planOpen: boolean = false;
   @State errorText: string = '';
+  /** Status bar height in vp; the window is full screen, so content must inset itself. */
+  @State topInset: number = 0;
+  /** Navigation indicator height in vp, keeping the composer clear of the gesture bar. */
+  @State bottomInset: number = 0;
 
   private scroller: Scroller = new Scroller();
   private token: CancelToken | undefined = undefined;
   private askResolver: ((answer: string) => void) | undefined = undefined;
   private speech: SpeechService | undefined = undefined;
   private deltaCount: number = 0;
+  private mainWindow: window.Window | undefined = undefined;
 
   aboutToAppear(): void {
     SettingsService.ensurePublished();
     this.speech = new SpeechService(this.speechEvents());
     this.restoreSession();
+    this.measureSafeArea();
   }
 
   aboutToDisappear(): void {
@@ -110,6 +117,58 @@ struct Index {
     const speech: SpeechService | undefined = this.speech;
     if (speech !== undefined) {
       speech.release();
+    }
+    const mainWindow: window.Window | undefined = this.mainWindow;
+    if (mainWindow !== undefined) {
+      try {
+        mainWindow.off('avoidAreaChange');
+      } catch (e) {
+        // The window may already be gone during teardown.
+      }
+      this.mainWindow = undefined;
+    }
+  }
+
+  /* -------------------------------- safe area --------------------------------- */
+
+  /**
+   * Read the system bar insets.
+   *
+   * `EntryAbility` asks for `setWindowLayoutFullScreen(true)` so the background can run
+   * under the status bar; the flip side is that the system no longer insets the page for
+   * us, so the chat shell pads itself by exactly the status bar and navigation indicator
+   * heights reported here.
+   */
+  private async measureSafeArea(): Promise<void> {
+    try {
+      const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const mainWindow: window.Window = await window.getLastWindow(context);
+      this.mainWindow = mainWindow;
+      this.refreshInsets();
+      mainWindow.on('avoidAreaChange', (options: window.AvoidAreaOptions) => {
+        this.refreshInsets();
+      });
+    } catch (e) {
+      // Without a window handle the shell simply renders edge to edge as before.
+    }
+  }
+
+  /** Convert the current avoid areas into vp paddings. */
+  private refreshInsets(): void {
+    const mainWindow: window.Window | undefined = this.mainWindow;
+    if (mainWindow === undefined) {
+      return;
+    }
+    try {
+      const systemArea: window.AvoidArea =
+        mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
+      const indicatorArea: window.AvoidArea =
+        mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      const uiContext = this.getUIContext();
+      this.topInset = uiContext.px2vp(systemArea.topRect.height);
+      this.bottomInset = uiContext.px2vp(indicatorArea.bottomRect.height);
+    } catch (e) {
+      // Keep the previous values rather than collapsing the layout.
     }
   }
 
@@ -897,6 +956,7 @@ struct Index {
       }
       .width('100%')
       .height('100%')
+      .padding({ top: this.topInset, bottom: this.bottomInset })
       .backgroundColor(this.palette.bg)
 
       if (this.askVisible) {
@@ -918,6 +978,7 @@ struct Index {
         }
         .width('100%')
         .height('100%')
+        .padding({ bottom: this.bottomInset })
         .backgroundColor(this.palette.scrim)
       }
     }
