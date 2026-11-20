@@ -66,6 +66,18 @@ $env:PSExecutionPolicyPreference = 'Bypass'
 `.buildhome/`，不污染用户目录。若 DevEco 不在 `E:\DevEco Studio`，改脚本顶部的
 `$deveco` 变量。
 
+运行纯逻辑测试（不需要设备，用 Node 直接跑模型层）：
+
+```powershell
+node scripts/test-logic.mjs
+```
+
+生成应用图标：
+
+```powershell
+python scripts/make_icons.py
+```
+
 安装到设备：
 
 ```powershell
@@ -73,6 +85,13 @@ hdc install -r entry\build\default\outputs\default\entry-default-unsigned.hap
 ```
 
 > 未签名 HAP 只能装到已开启调试的设备；正式自用请在 DevEco 里配置自己的签名。
+
+## 当前状态
+
+- ArkTS 全量编译通过，产出可安装的 HAP
+- 会话日志 → 渲染视图模型有 22 项自动化测试（`scripts/test-logic.mjs`）
+- 界面运行时行为**尚未在真机验证**（开发环境没有鸿蒙设备或模拟器镜像），
+  首次装机请对照 [docs/QA-CHECKLIST.md](docs/QA-CHECKLIST.md) 走一遍
 
 ## 首次使用
 

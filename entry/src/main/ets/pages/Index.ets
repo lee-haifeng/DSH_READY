@@ -217,7 +217,7 @@ struct Index {
 
     const token: CancelToken = new CancelToken();
     this.token = token;
-    const runtime: AgentRuntime = new AgentRuntime(settings, apiKey, this.agentEvents());
+    const runtime: AgentRuntime = new AgentRuntime(settings, apiKey, this.lang, this.agentEvents());
     try {
       await runtime.run(session, token, '');
     } catch (e) {
@@ -348,8 +348,11 @@ struct Index {
         // Usage is displayed from the committed assistant message.
       },
       onError: (code: string, message: string): void => {
-        const text: string = message.indexOf('.') > 0 && message.indexOf('error.') === 0
-          ? translate(this.lang, message) : errorMessage(this.lang, code);
+        // The agent passes an i18n key for local conditions and a provider sentence for
+        // remote failures; only the former is translated.
+        const isKey: boolean = message.indexOf(' ') < 0 && message.indexOf('.') > 0
+          && translate(this.lang, message) !== message;
+        const text: string = isKey ? translate(this.lang, message) : errorMessage(this.lang, code);
         this.errorText = text;
         this.showToast(text);
       },

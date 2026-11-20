@@ -156,6 +156,7 @@ const ZH: Record<string, string> = {
   'goal.blockedReason': '受阻原因',
   'goal.maxRounds': '最多',
   'goal.note': '每完成一轮会自动提示继续，达到上限后暂停。',
+  'goal.reachedCap': '已到达轮次上限，目标已暂停。可以继续发消息让我接着做。',
 
   'todo.title': '任务清单',
   'todo.pending': '待开始',
@@ -349,6 +350,7 @@ const EN: Record<string, string> = {
   'goal.blockedReason': 'Blocked because',
   'goal.maxRounds': 'Max',
   'goal.note': 'Each round auto-continues until the round cap, then pauses.',
+  'goal.reachedCap': 'Round cap reached. The goal is paused — send another message to continue.',
 
   'todo.title': 'Task list',
   'todo.pending': 'Pending',

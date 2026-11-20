@@ -24,6 +24,7 @@ import { LlmClient } from './LlmClient';
 import { buildGoalContinuation, buildSystemPrompt, toolDefs, ToolDef } from './Prompt';
 import { ToolContext, ToolRunner } from './Tools';
 import { ImageService } from './ImageService';
+import { translate } from '../i18n/Strings';
 import { WireBlock, WireMessage, WireRequest, WireThinking, WireTool, WireOutputConfig } from './Wire';
 
 const log = new Log('Agent');
@@ -178,11 +179,18 @@ export class AgentRuntime {
   private settings: AppSettings;
   private events: AgentEvents;
   private apiKey: string;
+  private lang: string;
 
-  constructor(settings: AppSettings, apiKey: string, events: AgentEvents) {
+  constructor(settings: AppSettings, apiKey: string, lang: string, events: AgentEvents) {
     this.settings = settings;
     this.apiKey = apiKey;
+    this.lang = lang;
     this.events = events;
+  }
+
+  /** Localised UI notice stored as a system message. */
+  private notice(key: string): string {
+    return translate(this.lang, key);
   }
 
   /** Accumulates one streamed reply into durable blocks. */
@@ -323,6 +331,22 @@ export class AgentRuntime {
       const startedAt: number = Date.now();
       const error = await client.stream(request, this.apiKey, this.settings.baseUrl, handler, token);
       if (token.cancelled) {
+        // Keep whatever already streamed so the user's stop does not erase the reply.
+        const partial: Array<ContentBlock> = AgentRuntime.collect(blocks);
+        if (partial.length > 0) {
+          const stopped: ChatMessage = {
+            id: newId('m'),
+            role: ROLE_ASSISTANT,
+            blocks: partial,
+            createdAt: Date.now(),
+            durationMs: Date.now() - startedAt,
+            modelId: this.settings.modelId,
+            errorText: translate(this.lang, 'chat.stopped')
+          };
+          session.messages.push(stopped);
+          this.events.onAssistant(stopped);
+          this.events.onPersist();
+        }
         this.events.onPhase(PHASE_IDLE);
         return;
       }
@@ -415,7 +439,7 @@ export class AgentRuntime {
       session.messages.push({
         id: newId('n'),
         role: ROLE_SYSTEM,
-        blocks: [{ kind: BLOCK_TEXT, text: `goal.roundLimit` }],
+        blocks: [{ kind: BLOCK_TEXT, text: this.notice('goal.reachedCap') }],
         createdAt: Date.now()
       });
       goal.phase = 'paused';
@@ -428,7 +452,10 @@ export class AgentRuntime {
     session.messages.push({
       id: newId('n'),
       role: ROLE_SYSTEM,
-      blocks: [{ kind: BLOCK_TEXT, text: `goal.round.${goal.rounds}` }],
+      blocks: [{
+        kind: BLOCK_TEXT,
+        text: `${this.notice('goal.rounds')} ${goal.rounds}/${goal.maxRounds}`
+      }],
       createdAt: Date.now()
     });
     this.events.onPersist();
