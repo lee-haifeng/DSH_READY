@@ -171,6 +171,9 @@ export class SessionStore {
     if (raw.goal !== undefined && raw.goal !== null) {
       session.goal = raw.goal;
     }
+    if (raw.memoryUpto !== undefined && raw.memoryUpto !== null) {
+      session.memoryUpto = raw.memoryUpto;
+    }
     return session;
   }
 

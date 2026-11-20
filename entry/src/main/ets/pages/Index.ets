@@ -33,6 +33,8 @@ import { CancelToken } from '../common/Cancel';
 import { ImageService } from '../service/ImageService';
 import { SpeechService, SpeechEvents } from '../service/SpeechService';
 import { TitleService } from '../service/TitleService';
+import { MemoryStore } from '../service/MemoryStore';
+import { MemoryExtractor } from '../service/MemoryExtractor';
 import { MessageItem } from '../view/MessageItem';
 import { Composer } from '../view/Composer';
 import { MarkdownView } from '../view/MarkdownView';
@@ -101,6 +103,8 @@ struct Index {
   private speech: SpeechService | undefined = undefined;
   private deltaCount: number = 0;
   private mainWindow: window.Window | undefined = undefined;
+  /** Guards against overlapping memory extraction runs. */
+  private extracting: boolean = false;
 
   aboutToAppear(): void {
     SettingsService.ensurePublished();
@@ -292,6 +296,51 @@ struct Index {
     this.persist();
     this.scrollToBottom();
     this.maybeGenerateTitle(settings, apiKey);
+    this.maybeExtractMemory(settings, apiKey);
+  }
+
+  /**
+   * Summarise the recent conversation into long-term memory.
+   *
+   * Runs after the reply is committed, at most once per few messages, and never blocks
+   * the conversation. Every outcome (including failure) advances the watermark so a
+   * broken extraction cannot retry on every single turn.
+   */
+  private async maybeExtractMemory(settings: AppSettings, apiKey: string): Promise<void> {
+    if (!settings.autoMemory || this.extracting) {
+      return;
+    }
+    const session: ChatSession = this.session;
+    if (session.id.length === 0 || apiKey.length === 0) {
+      return;
+    }
+    const upto: number = session.memoryUpto === undefined ? 0 : session.memoryUpto;
+    // Wait for a few new messages so one small request covers more ground.
+    if (session.messages.length - upto < 4) {
+      return;
+    }
+    const transcript: string = MemoryExtractor.buildTranscript(session, Math.max(0, upto - 2));
+    if (transcript.trim().length === 0) {
+      return;
+    }
+    this.extracting = true;
+    const watermark: number = session.messages.length;
+    try {
+      const existing = MemoryStore.all();
+      const facts: Array<string> = await MemoryExtractor.extract(settings, apiKey, transcript, existing);
+      for (let i = 0; i < facts.length; i++) {
+        MemoryStore.add(facts[i], session.id);
+      }
+      session.memoryUpto = watermark;
+      // Only persist when the user is still looking at the session we summarised.
+      if (this.session.id === session.id) {
+        this.persist();
+      }
+    } catch (e) {
+      // Memory is a background nicety; never surface its failures.
+    } finally {
+      this.extracting = false;
+    }
   }
 
   /** Stop the current turn. */

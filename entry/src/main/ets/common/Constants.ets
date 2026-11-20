@@ -61,6 +61,7 @@ export const PREF_SYSTEM_PROMPT: string = 'system_prompt';
 export const PREF_LANGUAGE: string = 'language';
 export const PREF_THEME: string = 'theme';
 export const PREF_AUTO_TITLE: string = 'auto_title';
+export const PREF_AUTO_MEMORY: string = 'auto_memory';
 export const PREF_SEARCH_PROVIDER: string = 'search_provider';
 export const PREF_LAST_SESSION: string = 'last_session_id';
 export const PREF_HAS_KEY: string = 'has_api_key';

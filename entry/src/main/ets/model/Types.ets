@@ -131,6 +131,8 @@ export interface ChatSession {
   todos: TodoItem[];
   /** Cached first user message, used by search without loading every file. */
   preview: string;
+  /** How many messages the memory extractor has already processed. */
+  memoryUpto?: number;
 }
 
 /** Lightweight row used by the session list so listing does not parse every message. */
@@ -154,6 +156,8 @@ export interface AppSettings {
   language: string;
   themeMode: string;
   autoTitle: boolean;
+  /** Extract durable facts into long-term memory after a conversation progresses. */
+  autoMemory: boolean;
   searchProvider: string;
   hasApiKey: boolean;
   apiKeyHint: string;

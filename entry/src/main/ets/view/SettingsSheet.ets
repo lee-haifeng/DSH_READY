@@ -93,6 +93,7 @@ const FALLBACK_SETTINGS: AppSettings = {
   language: LANG_ZH,
   themeMode: THEME_SYSTEM,
   autoTitle: true,
+  autoMemory: true,
   searchProvider: SEARCH_DUCKDUCKGO,
   hasApiKey: false,
   apiKeyHint: ''
@@ -234,6 +235,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -252,6 +254,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -270,6 +273,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -288,6 +292,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -306,6 +311,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -324,6 +330,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -342,6 +349,7 @@ export struct SettingsSheet {
       language: language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -360,6 +368,26 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: autoTitle,
+      autoMemory: s.autoMemory,
+      searchProvider: s.searchProvider,
+      hasApiKey: s.hasApiKey,
+      apiKeyHint: s.apiKeyHint
+    };
+    return next;
+  }
+
+  private withAutoMemory(autoMemory: boolean): AppSettings {
+    const s: AppSettings = this.settings;
+    const next: AppSettings = {
+      baseUrl: s.baseUrl,
+      modelId: s.modelId,
+      effort: s.effort,
+      maxTokens: s.maxTokens,
+      systemPrompt: s.systemPrompt,
+      language: s.language,
+      themeMode: s.themeMode,
+      autoTitle: s.autoTitle,
+      autoMemory: autoMemory,
       searchProvider: s.searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -378,6 +406,7 @@ export struct SettingsSheet {
       language: s.language,
       themeMode: s.themeMode,
       autoTitle: s.autoTitle,
+      autoMemory: s.autoMemory,
       searchProvider: searchProvider,
       hasApiKey: s.hasApiKey,
       apiKeyHint: s.apiKeyHint
@@ -432,6 +461,13 @@ export struct SettingsSheet {
       return;
     }
     this.applySettings(this.withAutoTitle(autoTitle));
+  }
+
+  private setAutoMemory(autoMemory: boolean): void {
+    if (this.settings.autoMemory === autoMemory) {
+      return;
+    }
+    this.applySettings(this.withAutoMemory(autoMemory));
   }
 
   private setSearchProvider(searchProvider: string): void {
@@ -972,6 +1008,37 @@ export struct SettingsSheet {
   }
 
   // ---------------------------------------------------------------------------
+  // 10b. 自动提炼记忆
+  // ---------------------------------------------------------------------------
+
+  @Builder
+  autoMemoryCard() {
+    Row({ space: SPACE_MD }) {
+      Column({ space: SPACE_XS }) {
+        Text(translate(this.lang, 'settings.autoMemory'))
+          .fontSize(CONTENT_FONT)
+          .fontColor(this.palette.textPrimary)
+          .width('100%')
+        Text(translate(this.lang, 'settings.autoMemory.note'))
+          .fontSize(FONT_XS)
+          .fontColor(this.palette.textTertiary)
+          .lineHeight(16)
+          .width('100%')
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      Toggle({ type: ToggleType.Switch, isOn: this.settings.autoMemory })
+        .selectedColor(this.palette.accent)
+        .onChange((isOn: boolean) => { this.setAutoMemory(isOn); })
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .backgroundColor(this.palette.surface)
+    .borderRadius(RADIUS_MD)
+    .padding(SPACE_LG)
+  }
+
+  // ---------------------------------------------------------------------------
   // 11. 搜索服务
   // ---------------------------------------------------------------------------
 
@@ -1216,6 +1283,7 @@ export struct SettingsSheet {
           this.appearanceCard()
           this.languageCard()
           this.autoTitleCard()
+          this.autoMemoryCard()
           this.searchCard()
           this.memoryCard()
           this.aboutCard()

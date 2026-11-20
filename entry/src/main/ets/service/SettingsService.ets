@@ -10,8 +10,9 @@ import { ConfigurationConstant } from '@kit.AbilityKit';
 import { i18n } from '@kit.LocalizationKit';
 import {
   DEFAULT_BASE_URL, EFFORT_HIGH, MODEL_FLASH, PREF_API_KEY_HINT,
-  PREF_AUTO_TITLE, PREF_BASE_URL, PREF_EFFORT, PREF_HAS_KEY, PREF_LANGUAGE, PREF_LAST_SESSION,
-  PREF_MAX_TOKENS, PREF_MODEL_ID, PREF_SEARCH_PROVIDER, PREF_SYSTEM_PROMPT, PREF_THEME, PREF_STORE
+  PREF_AUTO_MEMORY, PREF_AUTO_TITLE, PREF_BASE_URL, PREF_EFFORT, PREF_HAS_KEY, PREF_LANGUAGE,
+  PREF_LAST_SESSION, PREF_MAX_TOKENS, PREF_MODEL_ID, PREF_SEARCH_PROVIDER, PREF_SYSTEM_PROMPT,
+  PREF_THEME, PREF_STORE
 } from '../common/Constants';
 import { AppSettings } from '../model/Types';
 import { LANG_EN, LANG_ZH } from '../i18n/Strings';
@@ -37,6 +38,7 @@ export function defaultSettings(): AppSettings {
     language: detectLanguage(),
     themeMode: THEME_SYSTEM,
     autoTitle: true,
+    autoMemory: true,
     searchProvider: SEARCH_DUCKDUCKGO,
     hasApiKey: false,
     apiKeyHint: ''
@@ -118,6 +120,7 @@ export class SettingsService {
       language: SettingsService.readString(PREF_LANGUAGE, defaults.language),
       themeMode: SettingsService.readString(PREF_THEME, defaults.themeMode),
       autoTitle: SettingsService.readBool(PREF_AUTO_TITLE, defaults.autoTitle),
+      autoMemory: SettingsService.readBool(PREF_AUTO_MEMORY, defaults.autoMemory),
       searchProvider: SettingsService.readString(PREF_SEARCH_PROVIDER, defaults.searchProvider),
       hasApiKey: SettingsService.readBool(PREF_HAS_KEY, false),
       apiKeyHint: SettingsService.readString(PREF_API_KEY_HINT, '')
@@ -138,6 +141,7 @@ export class SettingsService {
       store.putSync(PREF_LANGUAGE, settings.language);
       store.putSync(PREF_THEME, settings.themeMode);
       store.putSync(PREF_AUTO_TITLE, settings.autoTitle);
+      store.putSync(PREF_AUTO_MEMORY, settings.autoMemory);
       store.putSync(PREF_SEARCH_PROVIDER, settings.searchProvider);
       store.putSync(PREF_HAS_KEY, settings.hasApiKey);
       store.putSync(PREF_API_KEY_HINT, settings.apiKeyHint);
@@ -158,6 +162,7 @@ export class SettingsService {
       language: current.language,
       themeMode: current.themeMode,
       autoTitle: current.autoTitle,
+      autoMemory: current.autoMemory,
       searchProvider: current.searchProvider,
       hasApiKey: hasKey,
       apiKeyHint: hint

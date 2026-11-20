@@ -45,7 +45,9 @@ function ok(name, condition, detail) {
 /** Copy one module into the temp dir, rewriting relative specifiers to .ts files. */
 function stage(relative, name) {
   const source = readFileSync(join(ETS, relative), 'utf8');
-  const rewritten = source.replace(/from '\.\/([A-Za-z]+)'/g, "from './$1.ts'");
+  const rewritten = source
+    .replace(/from '\.\.\/(?:common|model|service|view)\/([A-Za-z]+)'/g, "from './$1.ts'")
+    .replace(/from '\.\/([A-Za-z]+)'/g, "from './$1.ts'");
   writeFileSync(join(OUT, name), rewritten, 'utf8');
 }
 
@@ -89,11 +91,18 @@ mkdirSync(OUT, { recursive: true });
 stage(join('model', 'Types.ets'), 'Types.ts');
 stage(join('model', 'Render.ets'), 'Render.ts');
 stage(join('common', 'TextRank.ets'), 'TextRank.ts');
-splitTypeImports(join(OUT, 'Render.ts'), typeNamesOf(readFileSync(join(OUT, 'Types.ts'), 'utf8')));
+stage(join('common', 'FactParse.ets'), 'FactParse.ts');
+stage(join('model', 'Transcript.ets'), 'Transcript.ts');
+
+const typeNames = typeNamesOf(readFileSync(join(OUT, 'Types.ts'), 'utf8'));
+splitTypeImports(join(OUT, 'Render.ts'), typeNames);
+splitTypeImports(join(OUT, 'Transcript.ts'), typeNames);
 
 const { buildRenderItems, textLength } = await import(pathToFileURL(join(OUT, 'Render.ts')).href);
 const Types = await import(pathToFileURL(join(OUT, 'Types.ts')).href);
 const { tokenize, relevance, rank } = await import(pathToFileURL(join(OUT, 'TextRank.ts')).href);
+const { clipText, parseFacts } = await import(pathToFileURL(join(OUT, 'FactParse.ts')).href);
+const { buildTranscript } = await import(pathToFileURL(join(OUT, 'Transcript.ts')).href);
 
 /* ------------------------------------------------------------------ fixtures */
 
@@ -247,6 +256,84 @@ function toolMessage(id, toolCallId, name, text, isError) {
   check('rank picks the preference', order2, [1]);
   check('rank limit respected', rank('用户', candidates, 1).length, 1);
   check('rank drops zero scores', rank('完全无关的词汇', candidates, 5), []);
+}
+
+/* ------------------------------------------------------- fact extraction */
+
+{
+  check('clip keeps short text', clipText('abc', 10), 'abc');
+  check('clip truncates', clipText('abcdef', 3), 'abc…');
+  check('clip trims', clipText('  ab  ', 10), 'ab');
+
+  check('plain array', parseFacts('["A fact","B fact"]', 3, 200), ['A fact', 'B fact']);
+  check('fenced array', parseFacts('```json\n["Fenced fact"]\n```', 3, 200), ['Fenced fact']);
+  check('prose around array', parseFacts('Here you go: ["Wrapped fact"] — done', 3, 200), ['Wrapped fact']);
+  check('empty array', parseFacts('[]', 3, 200), []);
+  check('no json at all', parseFacts('I could not find anything.', 3, 200), []);
+  check('broken json', parseFacts('["unclosed"', 3, 200), []);
+  check('non strings dropped', parseFacts('["ab", 3, null, "Real fact here"]', 3, 200), ['Real fact here']);
+  check('duplicates dropped', parseFacts('["Same fact","same fact"]', 3, 200), ['Same fact']);
+  check('respects max facts', parseFacts('["a1b2","b2c3","c3d4","d4e5"]', 2, 200), ['a1b2', 'b2c3']);
+  check('respects max chars', parseFacts('["0123456789"]', 3, 4), ['0123…']);
+}
+
+/* ------------------------------------------------------------ transcripts */
+
+{
+  const session = {
+    id: 's1',
+    title: 'T',
+    createdAt: 1,
+    updatedAt: 1,
+    messages: [
+      { id: 'm1', role: 'user', blocks: [{ kind: 'text', text: 'I am building a HarmonyOS port' }], createdAt: 1 },
+      { id: 'm2', role: 'assistant', blocks: [{ kind: 'text', text: 'Nice, tell me more' }], createdAt: 1 },
+      { id: 'm3', role: 'tool', blocks: [{ kind: 'text', text: 'tool output' }], createdAt: 1, toolCallId: 't1' },
+      { id: 'm4', role: 'system', blocks: [{ kind: 'text', text: 'round 2' }], createdAt: 1 },
+      { id: 'm5', role: 'user', blocks: [{ kind: 'text', text: '' }], createdAt: 1 }
+    ],
+    modelId: '',
+    effort: '',
+    todos: [],
+    preview: ''
+  };
+  const transcript = buildTranscript(session, 0, 500, 6000);
+  check('roles and filtering', transcript, 'User: I am building a HarmonyOS port\nAssistant: Nice, tell me more');
+
+  const long = {
+    id: 's2',
+    title: 'T',
+    createdAt: 1,
+    updatedAt: 1,
+    messages: [
+      { id: 'm1', role: 'user', blocks: [{ kind: 'text', text: 'x'.repeat(200) }], createdAt: 1 }
+    ],
+    modelId: '',
+    effort: '',
+    todos: [],
+    preview: ''
+  };
+  const clipped = buildTranscript(long, 0, 10, 6000);
+  ok('message clipped', clipped.endsWith('…') && clipped.length < 40, clipped);
+
+  const many = {
+    id: 's3',
+    title: 'T',
+    createdAt: 1,
+    updatedAt: 1,
+    messages: [
+      { id: 'm1', role: 'user', blocks: [{ kind: 'text', text: 'aaa' }], createdAt: 1 },
+      { id: 'm2', role: 'assistant', blocks: [{ kind: 'text', text: 'bbb' }], createdAt: 1 },
+      { id: 'm3', role: 'user', blocks: [{ kind: 'text', text: 'ccc' }], createdAt: 1 }
+    ],
+    modelId: '',
+    effort: '',
+    todos: [],
+    preview: ''
+  };
+  const tail = buildTranscript(many, 0, 500, 25);
+  ok('budget keeps the tail', tail.indexOf('ccc') >= 0 && tail.indexOf('aaa') < 0, tail);
+  check('fromIndex skips earlier turns', buildTranscript(many, 2, 500, 6000), 'User: ccc');
 }
 
 /* ---------------------------------------------------------------------- report */
