@@ -51,6 +51,7 @@ import {
 import { AppSettings } from '../model/Types';
 import { SEARCH_BING, SEARCH_DUCKDUCKGO, SettingsService } from '../service/SettingsService';
 import { SecretService } from '../service/SecretService';
+import { MemoryEntry, MemoryStore } from '../service/MemoryStore';
 import { translate } from '../i18n/Strings';
 
 /** 语言代码。i18n 模块未在契约中列出 LANG_* 常量，这里用本地常量兜底。 */
@@ -75,6 +76,9 @@ const CONTENT_FONT: number = 15;
 /** 主题与语言的固定选项顺序。 */
 const THEME_MODES: string[] = [THEME_SYSTEM, THEME_LIGHT, THEME_DARK];
 const LANGUAGE_CODES: string[] = [LANG_ZH, LANG_EN];
+
+/** 设置页最多直接列出多少条记忆，其余只显示总数。 */
+const MEMORY_DISPLAY_LIMIT: number = 30;
 
 /**
  * @State 字段的占位初始值。
@@ -114,6 +118,8 @@ export struct SettingsSheet {
   @State maxTokensDraft: number = MAX_TOKENS_FALLBACK;
   /** 自定义人设草稿，失焦 / 关闭时落盘。 */
   @State systemPromptDraft: string = '';
+  /** 长期记忆快照，最近的在前面。 */
+  @State memories: Array<MemoryEntry> = [];
 
   aboutToAppear(): void {
     this.settings = SettingsService.get();
@@ -121,7 +127,70 @@ export struct SettingsSheet {
     this.systemPromptDraft = this.settings.systemPrompt;
     this.apiKeyDraft = '';
     this.editingKey = false;
+    this.refreshMemories();
     this.reconcileApiKey();
+  }
+
+  /* ------------------------------ long-term memory ---------------------------- */
+
+  /** Reload the memory snapshot, newest first. */
+  private refreshMemories(): void {
+    const all: Array<MemoryEntry> = MemoryStore.all();
+    const rows: Array<MemoryEntry> = [];
+    for (let i = all.length - 1; i >= 0; i--) {
+      rows.push(all[i]);
+    }
+    this.memories = rows;
+  }
+
+  /** Pin or unpin one entry. */
+  private togglePin(id: string, pinned: boolean): void {
+    MemoryStore.setPinned(id, !pinned);
+    this.refreshMemories();
+  }
+
+  /** Delete one entry after confirmation. */
+  private async confirmDeleteMemory(id: string): Promise<void> {
+    let confirmed: boolean = false;
+    try {
+      const result = await this.getUIContext().getPromptAction().showDialog({
+        title: translate(this.lang, 'common.delete'),
+        message: translate(this.lang, 'settings.memory.deleteConfirm'),
+        buttons: [
+          { text: translate(this.lang, 'common.cancel'), color: this.palette.textSecondary },
+          { text: translate(this.lang, 'common.delete'), color: this.palette.danger }
+        ]
+      });
+      confirmed = result.index === 1;
+    } catch (error) {
+      confirmed = false;
+    }
+    if (confirmed) {
+      MemoryStore.remove(id);
+      this.refreshMemories();
+    }
+  }
+
+  /** Wipe every remembered fact after confirmation. */
+  private async confirmClearMemories(): Promise<void> {
+    let confirmed: boolean = false;
+    try {
+      const result = await this.getUIContext().getPromptAction().showDialog({
+        title: translate(this.lang, 'settings.memory.clear'),
+        message: translate(this.lang, 'settings.memory.clearConfirm'),
+        buttons: [
+          { text: translate(this.lang, 'common.cancel'), color: this.palette.textSecondary },
+          { text: translate(this.lang, 'common.delete'), color: this.palette.danger }
+        ]
+      });
+      confirmed = result.index === 1;
+    } catch (error) {
+      confirmed = false;
+    }
+    if (confirmed) {
+      MemoryStore.clear();
+      this.refreshMemories();
+    }
   }
 
   /**
@@ -924,7 +993,104 @@ export struct SettingsSheet {
   }
 
   // ---------------------------------------------------------------------------
-  // 12. 关于
+  // 12. 长期记忆
+  // ---------------------------------------------------------------------------
+
+  @Builder
+  memoryRow(entry: MemoryEntry) {
+    Row({ space: SPACE_SM }) {
+      Text(entry.text)
+        .fontSize(FONT_SM)
+        .fontColor(this.palette.textPrimary)
+        .layoutWeight(1)
+        .maxLines(2)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+      Text(entry.pinned ? '★' : '☆')
+        .fontSize(FONT_MD)
+        .fontColor(entry.pinned ? this.palette.warning : this.palette.textTertiary)
+        .width(30)
+        .height(30)
+        .textAlign(TextAlign.Center)
+        .onClick(() => {
+          this.togglePin(entry.id, entry.pinned);
+        })
+      Text('×')
+        .fontSize(FONT_MD)
+        .fontColor(this.palette.textTertiary)
+        .width(30)
+        .height(30)
+        .textAlign(TextAlign.Center)
+        .onClick(() => {
+          this.confirmDeleteMemory(entry.id);
+        })
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ top: SPACE_XS, bottom: SPACE_XS })
+  }
+
+  @Builder
+  memoryCard() {
+    Column({ space: SPACE_MD }) {
+      this.cardTitle(translate(this.lang, 'settings.memory'))
+      Row({ space: SPACE_SM }) {
+        Text(translate(this.lang, 'settings.memory.note'))
+          .fontSize(FONT_XS)
+          .fontColor(this.palette.textTertiary)
+          .lineHeight(16)
+          .layoutWeight(1)
+        Text(`${this.memories.length}`)
+          .fontSize(FONT_XS)
+          .fontColor(this.palette.accent)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+
+      if (this.memories.length === 0) {
+        Text(translate(this.lang, 'settings.memory.empty'))
+          .fontSize(FONT_SM)
+          .fontColor(this.palette.textSecondary)
+          .lineHeight(18)
+          .width('100%')
+      } else {
+        Column({ space: SPACE_XS }) {
+          ForEach(this.memories.slice(0, MEMORY_DISPLAY_LIMIT), (entry: MemoryEntry) => {
+            this.memoryRow(entry)
+          }, (entry: MemoryEntry) => `mem-${entry.id}-${entry.pinned}`)
+        }
+        .width('100%')
+
+        if (this.memories.length > MEMORY_DISPLAY_LIMIT) {
+          Text(translate(this.lang, 'settings.memory.overflow'))
+            .fontSize(FONT_XS)
+            .fontColor(this.palette.textTertiary)
+            .width('100%')
+        }
+
+        Row() {
+          Blank()
+          Text(translate(this.lang, 'settings.memory.clear'))
+            .fontSize(FONT_SM)
+            .fontColor(this.palette.danger)
+            .padding({ left: SPACE_MD, right: SPACE_MD, top: SPACE_SM, bottom: SPACE_SM })
+            .backgroundColor(this.palette.surfaceAlt)
+            .borderRadius(RADIUS_SM)
+            .onClick(() => {
+              this.confirmClearMemories();
+            })
+        }
+        .width('100%')
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .backgroundColor(this.palette.surface)
+    .borderRadius(RADIUS_MD)
+    .padding(SPACE_LG)
+  }
+
+  // ---------------------------------------------------------------------------
+  // 13. 关于
   // ---------------------------------------------------------------------------
 
   @Builder
@@ -1051,6 +1217,7 @@ export struct SettingsSheet {
           this.languageCard()
           this.autoTitleCard()
           this.searchCard()
+          this.memoryCard()
           this.aboutCard()
         }
         .width('100%')

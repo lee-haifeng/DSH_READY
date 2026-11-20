@@ -95,8 +95,27 @@ function textOf(message: ChatMessage): string {
   return text;
 }
 
+/** Flattened searchable text of one session, plus a lowercased copy for matching. */
+interface SessionText {
+  text: string;
+  lower: string;
+}
+
+/** How many sessions keep their flattened text in memory. */
+const TEXT_CACHE_LIMIT: number = 64;
+
 export class SessionStore {
   private static cachedIndex: Array<SessionSummary> | undefined = undefined;
+  /**
+   * Flattened text cache.
+   *
+   * Search used to parse every session document on every keystroke. Flattening once and
+   * keeping the result turns repeat searches into string scans, which is what makes the
+   * session search box and the `search_history` tool usable with hundreds of messages.
+   */
+  private static textCache: Map<string, SessionText> = new Map();
+  /** Insertion order of `textCache`, used to evict the oldest entry. */
+  private static cacheOrder: Array<string> = [];
 
   /** Directory holding session documents, created on demand. */
   static dir(): string {
@@ -200,6 +219,7 @@ export class SessionStore {
     }
     next.sort((a: SessionSummary, b: SessionSummary) => b.updatedAt - a.updatedAt);
     SessionStore.writeIndex(next);
+    SessionStore.invalidate(session.id);
     SessionStore.bumpRevision();
   }
 
@@ -212,6 +232,7 @@ export class SessionStore {
     const index: Array<SessionSummary> = SessionStore.list();
     const next: Array<SessionSummary> = index.filter((row: SessionSummary) => row.id !== id);
     SessionStore.writeIndex(next);
+    SessionStore.invalidate(id);
     SessionStore.bumpRevision();
   }
 
@@ -297,26 +318,54 @@ export class SessionStore {
         hits.push({ summary: summary, snippet: summary.title });
         continue;
       }
-      const session: ChatSession | undefined = SessionStore.load(summary.id);
-      if (session === undefined) {
+      const entry: SessionText | undefined = SessionStore.searchTextOf(summary.id);
+      if (entry === undefined) {
         continue;
       }
-      let matched: string = '';
-      for (let j = 0; j < session.messages.length; j++) {
-        const message: ChatMessage = session.messages[j];
-        const text: string = textOf(message);
-        const at: number = text.toLowerCase().indexOf(needle);
-        if (at >= 0) {
-          const from: number = Math.max(0, at - 30);
-          matched = `…${text.slice(from, at + needle.length + 60).trim()}…`;
-          break;
-        }
+      const at: number = entry.lower.indexOf(needle);
+      if (at < 0) {
+        continue;
       }
-      if (matched.length > 0) {
-        hits.push({ summary: summary, snippet: matched });
-      }
+      const from: number = Math.max(0, at - 30);
+      const snippet: string = `…${entry.text.slice(from, at + needle.length + 60).trim()}…`;
+      hits.push({ summary: summary, snippet: snippet });
     }
     return hits;
+  }
+
+  /** Drop the cached text of one session after it changed. */
+  private static invalidate(id: string): void {
+    SessionStore.textCache.delete(id);
+    const at: number = SessionStore.cacheOrder.indexOf(id);
+    if (at >= 0) {
+      SessionStore.cacheOrder.splice(at, 1);
+    }
+  }
+
+  /** Flattened text of one session, built on first use and cached. */
+  private static searchTextOf(id: string): SessionText | undefined {
+    const cached: SessionText | undefined = SessionStore.textCache.get(id);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const session: ChatSession | undefined = SessionStore.load(id);
+    if (session === undefined) {
+      return undefined;
+    }
+    let text: string = `${session.title}\n`;
+    for (let i = 0; i < session.messages.length; i++) {
+      text += `${textOf(session.messages[i])}\n`;
+    }
+    const entry: SessionText = { text: text, lower: text.toLowerCase() };
+    if (SessionStore.cacheOrder.length >= TEXT_CACHE_LIMIT) {
+      const evicted: string | undefined = SessionStore.cacheOrder.shift();
+      if (evicted !== undefined) {
+        SessionStore.textCache.delete(evicted);
+      }
+    }
+    SessionStore.textCache.set(id, entry);
+    SessionStore.cacheOrder.push(id);
+    return entry;
   }
 
   /** Delete every conversation. Used by the destructive action in settings. */
@@ -329,6 +378,8 @@ export class SessionStore {
       }
     }
     SessionStore.writeIndex([]);
+    SessionStore.textCache.clear();
+    SessionStore.cacheOrder = [];
     SessionStore.bumpRevision();
   }
 
