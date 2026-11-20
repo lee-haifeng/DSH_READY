@@ -1,0 +1,27 @@
+# NOTICE
+
+DSH Mobile
+Copyright (c) 2026 DSH Mobile contributors
+Licensed under the MIT License — see [LICENSE](LICENSE).
+
+## Upstream
+
+This project is a community port of **DeepSeek Harness**
+(<https://github.com/deepseek-ai/deepseek-harness>), which is released under the
+MIT License. The wire protocol handling in `entry/src/main/ets/service/LlmClient.ets`
+and the request shapes in `entry/src/main/ets/service/Wire.ets` follow the upstream
+behaviour of `@deepseek-ai/dsh-llm-deepseek` (version 0.2.2-rc.5).
+
+This is **not** an official DeepSeek product, and it is not endorsed by or affiliated
+with DeepSeek. The DeepSeek name is used only to describe what the app talks to.
+
+## Third-party trademarks
+
+HarmonyOS and ArkTS are trademarks of Huawei Technologies Co., Ltd.
+DeepSeek is a trademark of its respective owner.
+All other trademarks belong to their respective owners; their use here is descriptive.
+
+## Fonts, icons and images
+
+The application icon is generated from geometric primitives by
+`scripts/make_icons.py` and contains no third-party artwork.

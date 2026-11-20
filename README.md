@@ -185,3 +185,5 @@ entry/src/main/ets/
 ## 许可证
 
 [MIT](LICENSE)。上游同样以 MIT 发布。本项目与 DeepSeek 官方无关。
+
+第三方归属与商标说明见 [NOTICE](NOTICE)。
