@@ -134,21 +134,17 @@ hdc install -r entry\build\default\outputs\default\entry-default-unsigned.hap
 
 ```
 entry/src/main/ets/
-├── common/          常量、主题令牌、日志、工具函数、错误映射
-├── i18n/            中英文文案表
-├── model/           数据类型与会话→渲染视图模型
-├── service/
-│   ├── LlmClient    Messages 流式客户端（SSE 解析）
-│   ├── AgentLoop    智能体循环：流式→工具→续跑→目标
-│   ├── Tools        工具执行器
-│   ├── Prompt       系统提示词与工具 schema
-│   ├── SessionStore 会话持久化与搜索
-│   ├── SettingsService / SecretService  设置与密钥
-│   ├── ImageService / SpeechService     图片与语音
-│   └── WebTool      网页抓取与搜索
-├── view/            消息气泡、工具卡片、Markdown、输入栏、各个 sheet
-└── pages/Index.ets  应用主壳
+├── common/          常量、主题令牌、日志、工具函数、错误映射          (.ts)
+├── i18n/            中英文文案表                                    (.ts)
+├── model/           数据类型与会话→渲染视图模型                      (.ts)
+├── service/         能力层：协议、agent 循环、工具、存储、记忆        (.ts)
+├── view/            ArkUI 组件：消息气泡、工具卡片、Markdown、sheet   (.ets)
+└── pages/Index.ets  应用主壳                                        (.ets)
 ```
+
+约定很简单：**用到 ArkUI 装饰器（`@Component` / `struct` / `@State`…）的文件用 `.ets`，
+其余纯逻辑一律 `.ts`**。这也是为什么 `node scripts/test-logic.mjs` 能直接跑模型层的测试——
+那些文件就是标准 TypeScript。
 
 ## 设计说明
 

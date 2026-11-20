@@ -88,12 +88,12 @@ function splitTypeImports(file, types) {
 }
 
 mkdirSync(OUT, { recursive: true });
-stage(join('model', 'Types.ets'), 'Types.ts');
-stage(join('model', 'Render.ets'), 'Render.ts');
-stage(join('common', 'TextRank.ets'), 'TextRank.ts');
-stage(join('common', 'FactParse.ets'), 'FactParse.ts');
-stage(join('model', 'Transcript.ets'), 'Transcript.ts');
-stage(join('common', 'Vector.ets'), 'Vector.ts');
+stage(join('model', 'Types.ts'), 'Types.ts');
+stage(join('model', 'Render.ts'), 'Render.ts');
+stage(join('common', 'TextRank.ts'), 'TextRank.ts');
+stage(join('common', 'FactParse.ts'), 'FactParse.ts');
+stage(join('model', 'Transcript.ts'), 'Transcript.ts');
+stage(join('common', 'Vector.ts'), 'Vector.ts');
 
 const typeNames = typeNamesOf(readFileSync(join(OUT, 'Types.ts'), 'utf8'));
 splitTypeImports(join(OUT, 'Render.ts'), typeNames);

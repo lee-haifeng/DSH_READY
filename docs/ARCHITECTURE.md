@@ -20,12 +20,12 @@
 ## 2. 分层
 
 ```
-pages/Index.ets            应用壳：编排会话、调用 agent、挂载 sheet
+pages/Index.ets            应用壳：编排会话、调用 agent、挂载 sheet      (.ets)
    │
-   ├── view/*              纯展示组件（消息、工具卡、Markdown、输入栏、sheet）
-   ├── model/Render.ets    会话日志 → 有序渲染视图模型
+   ├── view/*              纯展示组件（消息、工具卡、Markdown、输入栏、sheet）  (.ets)
+   ├── model/Render.ts     会话日志 → 有序渲染视图模型                      (.ts)
    │
-   └── service/*           能力层
+   └── service/*           能力层                                          (.ts)
         ├── AgentLoop     一轮对话的驱动者
         ├── LlmClient     HTTP + SSE
         ├── Tools         工具执行
@@ -38,6 +38,19 @@ pages/Index.ets            应用壳：编排会话、调用 agent、挂载 shee
 依赖方向是单向的：`view → model → service → common`，反向依赖只在
 `service/SessionStore` 写 AppStorage 通知列表刷新这一处（`bumpRevision`），
 属于刻意保留的广播通道。
+
+### 文件扩展名约定
+
+| 扩展名 | 放什么 | 判定标准 |
+| --- | --- | --- |
+| `.ets` | 声明式 UI 与 Ability | 用到 `@Component` / `struct` / `@State` / `@Entry`，或由 `module.json5` 直接引用 |
+| `.ts` | 纯逻辑 | 其余全部：模型、协议、存储、工具、提示词、i18n 文本表 |
+
+ArkTS 编译器两种都收，但 `.ets` 是唯一能承载 ArkUI 装饰器的格式。把逻辑放 `.ts` 有三个好处：
+逻辑可以脱离 UI 单独推理、`node --experimental-strip-types` 能直接跑测试、GitHub 的语言统计也能
+正确显示（它没有 `.ets` 的语法定义，见 `.gitattributes` 里的映射说明）。
+
+比例大致是 11 个 `.ets`（UI）对 31 个 `.ts`（逻辑）。
 
 ## 3. 一轮对话的数据流
 
@@ -165,7 +178,7 @@ pages/Index.ets            应用壳：编排会话、调用 agent、挂载 shee
 
 ### 检索打分
 
-没有 embedding 模型，召回靠三层打分（`common/TextRank.ets` 的 `scoreWithKeywords`）：
+没有 embedding 模型，召回靠三层打分（`common/TextRank.ts` 的 `scoreWithKeywords`）：
 
 | 层 | 做法 | 解决什么 |
 | --- | --- | --- |
@@ -188,9 +201,9 @@ pages/Index.ets            应用壳：编排会话、调用 agent、挂载 shee
 
 | 位置 | 作用 |
 | --- | --- |
-| `service/Embedding.ets` | `EmbeddingProvider` 接口 + `EmbeddingRegistry` 注册表，默认空 |
+| `service/Embedding.ts` | `EmbeddingProvider` 接口 + `EmbeddingRegistry` 注册表，默认空 |
 | `MemoryEntry.vector` | 记忆的向量字段，随 `memory.json` 持久化，缺失表示该条只能词法召回 |
-| `common/Vector.ets` | `dot` / `norm` / `cosine`（映射到 0–1）/ `unit` / `toVector` |
+| `common/Vector.ts` | `dot` / `norm` / `cosine`（映射到 0–1）/ `unit` / `toVector` |
 | `combineScore()` | 词法分与语义分的合并规则：语义 ≥0.62 且高于词法才采用 |
 | `MemoryStore.setQueryVector()` | 每轮开始前注入当前问题的查询向量 |
 | `MemoryStore.refreshVectors()` | 批量补齐缺失向量，单次最多 32 条 |
@@ -232,10 +245,10 @@ pages/Index.ets            应用壳：编排会话、调用 agent、挂载 shee
 只靠模型自愿调 `remember`，实际很难积累。所以每轮结束后还有一个旁路的提炼：
 
 1. 会话里的 `memoryUpto` 记录已处理到第几条消息；未处理的新消息不足 4 条就直接跳过
-2. 把这段窗口压成 `User:` / `Assistant:` 文本（`model/Transcript.ets`，工具与系统提示不参与）
+2. 把这段窗口压成 `User:` / `Assistant:` 文本（`model/Transcript.ts`，工具与系统提示不参与）
 3. 用一次小请求（`thinking: disabled`、`max_tokens: 400`）要求返回 JSON 数组，
    并把已有的前 20 条记忆一起给它，要求不要重复
-4. `common/FactParse.ets` 从回复里抠出数组：容忍代码围栏、前后废话、坏 JSON、非字符串项
+4. `common/FactParse.ts` 从回复里抠出数组：容忍代码围栏、前后废话、坏 JSON、非字符串项
 5. 逐条交给 `MemoryStore.add`（自己去重），然后把 `memoryUpto` 推进到当前消息数
 
 几个刻意的决定：
@@ -249,16 +262,16 @@ pages/Index.ets            应用壳：编排会话、调用 agent、挂载 shee
 
 错误码沿用上游的稳定词表（`AUTH` / `QUOTA` / `RATE_LIMIT` / `INVALID_REQUEST` /
 `SERVER` / `TIMEOUT` / `ABORTED` / `CONTENT_REFUSED` / `STREAM_CLOSED` …），
-`common/Errors.ets` 负责映射到本地化文案。
+`common/Errors.ts` 负责映射到本地化文案。
 
 设计原则：**任何一次失败都要以一条 `tool_result` 或一条可见错误收尾**，绝不留下让
 历史变非法的中间态。
 
 ## 9. 主题与国际化
 
-- `common/Theme.ets` 定义一套 `Palette` 接口和明暗两份实例；组件通过
+- `common/Theme.ts` 定义一套 `Palette` 接口和明暗两份实例；组件通过
   `@StorageLink(KEY_PALETTE)` 读当前调色板，不读全局单例，预览和测试都方便。
-- 文案用 `i18n/Strings.ets` 的扁平表；缺 key 会直接显示 key 本身，方便开发时发现。
+- 文案用 `i18n/Strings.ts` 的扁平表；缺 key 会直接显示 key 本身，方便开发时发现。
 - 语言变化会写回 `AppStorage`，所有 `@StorageLink(KEY_LANG)` 的组件同帧刷新。
 
 ## 10. 有意为之的简化

@@ -1,5 +1,8 @@
-# GitHub has no ArkTS grammar, so the language bar would report these as plain
-# JavaScript or ignore them. ArkTS is a TypeScript dialect; tell linguist that.
+# GitHub has no ArkTS grammar, so a .ets file would be ignored entirely (the language
+# bar would then be dominated by the dev scripts). ArkTS is a TypeScript dialect; tell
+# linguist that so the UI files still count as TypeScript.
+#
+# Pure logic lives in .ts files and is detected normally.
 *.ets linguist-language=TypeScript linguist-detectable=true
 
 # HarmonyOS build descriptors and resource profiles are configuration, not source.
