@@ -196,6 +196,11 @@ const ZH: Record<string, string> = {
   'tool.searching': '正在搜索',
   'tool.fetching': '正在读取',
   'tool.results': '条结果',
+  'tool.searchHistory': '检索历史会话',
+  'tool.readSession': '读取历史会话',
+  'tool.remember': '记住这件事',
+  'tool.recall': '回忆已知信息',
+  'tool.forget': '忘记一件事',
 
   'about.title': '关于',
   'about.body': '这是一个把 DeepSeek Harness 桌面端移植到鸿蒙手机的自用客户端。它不是官方发布版本，行为尽量与上游保持一致。',
@@ -390,6 +395,11 @@ const EN: Record<string, string> = {
   'tool.searching': 'Searching',
   'tool.fetching': 'Fetching',
   'tool.results': 'results',
+  'tool.searchHistory': 'Search past chats',
+  'tool.readSession': 'Read past chat',
+  'tool.remember': 'Remember this',
+  'tool.recall': 'Recall known facts',
+  'tool.forget': 'Forget a fact',
 
   'about.title': 'About',
   'about.body': 'A personal HarmonyOS port of the DeepSeek Harness desktop client. This is not an official release; behaviour tracks upstream as closely as practical.',

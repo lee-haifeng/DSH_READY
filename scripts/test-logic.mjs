@@ -88,10 +88,12 @@ function splitTypeImports(file, types) {
 mkdirSync(OUT, { recursive: true });
 stage(join('model', 'Types.ets'), 'Types.ts');
 stage(join('model', 'Render.ets'), 'Render.ts');
+stage(join('common', 'TextRank.ets'), 'TextRank.ts');
 splitTypeImports(join(OUT, 'Render.ts'), typeNamesOf(readFileSync(join(OUT, 'Types.ts'), 'utf8')));
 
 const { buildRenderItems, textLength } = await import(pathToFileURL(join(OUT, 'Render.ts')).href);
 const Types = await import(pathToFileURL(join(OUT, 'Types.ts')).href);
+const { tokenize, relevance, rank } = await import(pathToFileURL(join(OUT, 'TextRank.ts')).href);
 
 /* ------------------------------------------------------------------ fixtures */
 
@@ -217,6 +219,34 @@ function toolMessage(id, toolCallId, name, text, isError) {
   const items = buildRenderItems([{ id: 'u1', role: Types.ROLE_USER, blocks: [image], createdAt: 1 }]);
   check('image collected', items[0].images.length, 1);
   check('image keeps uri', items[0].images[0].uri, '/tmp/a.jpg');
+}
+
+/* ------------------------------------------------------------- recall ranking */
+
+{
+  // Chinese has no spaces: runs of CJK characters become character bigrams.
+  check('cjk bigrams', tokenize('鸿蒙项目'), ['鸿蒙', '蒙项', '项目']);
+  check('latin words', tokenize('Hello, World!'), ['hello', 'world']);
+  check('mixed script', tokenize('用 ArkTS 写'), ['用', 'arkts', '写']);
+  check('empty text', tokenize(''), []);
+  check('punctuation only', tokenize('，。！'), []);
+
+  const relevant = relevance('鸿蒙 项目', '用户在做一个鸿蒙项目，基于 DeepSeek Harness');
+  ok('relevant > 0', relevant > 0, `got ${relevant}`);
+  check('unrelated => 0', relevance('天气预报', '用户在做一个鸿蒙项目'), 0);
+  check('empty query => 0', relevance('', '任何内容'), 0);
+
+  // A precise short fact must outrank a long rambling one that mentions the term once.
+  const candidates = [
+    '用户在做一个鸿蒙项目，还聊了很多别的事情，天气、咖啡、通勤路线、周末计划等等等等',
+    '用户偏好用中文回复'
+  ];
+  const order = rank('鸿蒙项目', candidates, 5);
+  check('rank picks the project', order, [0]);
+  const order2 = rank('中文', candidates, 5);
+  check('rank picks the preference', order2, [1]);
+  check('rank limit respected', rank('用户', candidates, 1).length, 1);
+  check('rank drops zero scores', rank('完全无关的词汇', candidates, 5), []);
 }
 
 /* ---------------------------------------------------------------------- report */

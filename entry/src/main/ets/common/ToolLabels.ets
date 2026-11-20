@@ -16,6 +16,11 @@ const ASK_USER: string = 'tool.askUser';
 const GOAL_CREATE: string = 'tool.goalCreate';
 const GOAL_GET: string = 'tool.goalGet';
 const GOAL_UPDATE: string = 'tool.goalUpdate';
+const SEARCH_HISTORY: string = 'tool.searchHistory';
+const READ_SESSION: string = 'tool.readSession';
+const REMEMBER: string = 'tool.remember';
+const RECALL: string = 'tool.recall';
+const FORGET: string = 'tool.forget';
 
 /** Human readable tool name for the current language. */
 export function toolLabel(lang: string, name: string): string {
@@ -34,6 +39,16 @@ export function toolLabel(lang: string, name: string): string {
     key = GOAL_GET;
   } else if (name === 'update_goal') {
     key = GOAL_UPDATE;
+  } else if (name === 'search_history') {
+    key = SEARCH_HISTORY;
+  } else if (name === 'read_session') {
+    key = READ_SESSION;
+  } else if (name === 'remember') {
+    key = REMEMBER;
+  } else if (name === 'recall') {
+    key = RECALL;
+  } else if (name === 'forget') {
+    key = FORGET;
   }
   if (key.length === 0) {
     return name;
@@ -58,6 +73,21 @@ export function toolGlyph(name: string): string {
   }
   if (name === 'create_goal' || name === 'get_goal' || name === 'update_goal') {
     return '◎';
+  }
+  if (name === 'search_history') {
+    return '⌛';
+  }
+  if (name === 'read_session') {
+    return '¶';
+  }
+  if (name === 'remember') {
+    return '✎';
+  }
+  if (name === 'recall') {
+    return '⌂';
+  }
+  if (name === 'forget') {
+    return '⌫';
   }
   return '◇';
 }
