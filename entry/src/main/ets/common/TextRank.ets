@@ -211,6 +211,29 @@ export function scoreWithKeywords(query: string, text: string, keywords: Array<s
 }
 
 /**
+ * Cosine similarity must reach this before it can override a lexical score; below it,
+ * unrelated sentence embeddings still sit around 0.5 and would inject noise.
+ */
+export const SEMANTIC_FLOOR: number = 0.62;
+
+/**
+ * Merge the lexical score with an optional semantic score.
+ *
+ * Until an embedding provider is registered the semantic score is always 0, so this
+ * returns the lexical score unchanged. That keeps the reserved vector path inert rather
+ * than hypothetical.
+ *
+ * @param lexical result of `scoreWithKeywords`
+ * @param semantic cosine similarity, or 0 when unavailable
+ */
+export function combineScore(lexical: number, semantic: number): number {
+  if (semantic >= SEMANTIC_FLOOR && semantic > lexical) {
+    return semantic;
+  }
+  return lexical;
+}
+
+/**
  * Dice coefficient over character bigrams.
  *
  * Catches typos, inflections and reordered phrasing that exact matching misses. It cannot

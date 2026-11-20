@@ -93,6 +93,7 @@ stage(join('model', 'Render.ets'), 'Render.ts');
 stage(join('common', 'TextRank.ets'), 'TextRank.ts');
 stage(join('common', 'FactParse.ets'), 'FactParse.ts');
 stage(join('model', 'Transcript.ets'), 'Transcript.ts');
+stage(join('common', 'Vector.ets'), 'Vector.ts');
 
 const typeNames = typeNamesOf(readFileSync(join(OUT, 'Types.ts'), 'utf8'));
 splitTypeImports(join(OUT, 'Render.ts'), typeNames);
@@ -100,8 +101,10 @@ splitTypeImports(join(OUT, 'Transcript.ts'), typeNames);
 
 const { buildRenderItems, textLength } = await import(pathToFileURL(join(OUT, 'Render.ts')).href);
 const Types = await import(pathToFileURL(join(OUT, 'Types.ts')).href);
-const { tokenize, relevance, rank, similarity, scoreWithKeywords } =
+const { tokenize, relevance, rank, similarity, scoreWithKeywords, combineScore, SEMANTIC_FLOOR } =
   await import(pathToFileURL(join(OUT, 'TextRank.ts')).href);
+const { dot, norm, cosine, unit, toVector, isVector } =
+  await import(pathToFileURL(join(OUT, 'Vector.ts')).href);
 const { clipText, parseFacts } = await import(pathToFileURL(join(OUT, 'FactParse.ts')).href);
 const { buildTranscript } = await import(pathToFileURL(join(OUT, 'Transcript.ts')).href);
 
@@ -331,6 +334,34 @@ function toolMessage(id, toolCallId, name, text, isError) {
   ok('typo still matches via fuzzy', scoreWithKeywords('harmonyos', 'harmonyso', []) > 0,
     `${scoreWithKeywords('harmonyos', 'harmonyso', [])}`);
   check('unrelated scores zero', scoreWithKeywords('天气预报', '用户喜欢健身', ['锻炼']), 0);
+}
+
+/* ------------------------------------------------ reserved vector recall */
+
+{
+  check('dot', dot([1, 2, 3], [4, 5, 6]), 32);
+  check('dot mismatch', dot([1, 2], [1]), 0);
+  check('norm', norm([3, 4]), 5);
+  check('cosine identical', cosine([1, 0], [1, 0]), 1);
+  check('cosine orthogonal', cosine([1, 0], [0, 1]), 0.5);
+  check('cosine opposite', cosine([1, 0], [-1, 0]), 0);
+  check('cosine mismatch', cosine([1, 0], [1, 0, 0]), 0);
+  check('cosine zero vector', cosine([0, 0], [1, 1]), 0);
+  check('cosine scale invariant', cosine([2, 0], [5, 0]), 1);
+  check('unit', unit([3, 4]), [0.6, 0.8]);
+  check('unit of zero', unit([0, 0]), [0, 0]);
+
+  ok('toVector accepts numbers', JSON.stringify(toVector([0.5, 1])) === '[0.5,1]');
+  check('toVector rejects empty', toVector([]), undefined);
+  check('toVector rejects strings', toVector(['a', 'b']), undefined);
+  check('toVector rejects scalar', toVector(3), undefined);
+  ok('isVector true for numbers', isVector([1, 2]) === true);
+
+  // Blending rules: semantic wins only when strong enough and genuinely better.
+  check('semantic replaces weak lexical', combineScore(0.3, 0.9), 0.9);
+  check('lexical kept when better', combineScore(0.95, 0.9), 0.95);
+  check('semantic below floor ignored', combineScore(0.2, SEMANTIC_FLOOR - 0.01), 0.2);
+  check('no semantic means lexical', combineScore(0.42, 0), 0.42);
 }
 
 /* ------------------------------------------------------------ transcripts */

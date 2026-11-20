@@ -35,6 +35,7 @@ import { SpeechService, SpeechEvents } from '../service/SpeechService';
 import { TitleService } from '../service/TitleService';
 import { MemoryStore } from '../service/MemoryStore';
 import { MemoryExtractor } from '../service/MemoryExtractor';
+import { EmbeddingRegistry } from '../service/Embedding';
 import { MessageItem } from '../view/MessageItem';
 import { Composer } from '../view/Composer';
 import { MarkdownView } from '../view/MarkdownView';
@@ -278,6 +279,14 @@ struct Index {
     this.persist();
     this.scrollToBottom();
 
+    // Reserved semantic-recall hook: with no embedding provider registered this clears
+    // the vector and memory injection stays purely lexical.
+    MemoryStore.setQueryVector(undefined);
+    if (EmbeddingRegistry.isAvailable()) {
+      const vector: Array<number> | undefined = await EmbeddingRegistry.embedOne(text);
+      MemoryStore.setQueryVector(vector);
+    }
+
     const token: CancelToken = new CancelToken();
     this.token = token;
     const runtime: AgentRuntime = new AgentRuntime(settings, apiKey, this.lang, this.agentEvents());
@@ -297,6 +306,15 @@ struct Index {
     this.scrollToBottom();
     this.maybeGenerateTitle(settings, apiKey);
     this.maybeExtractMemory(settings, apiKey);
+    this.backfillMemoryVectors();
+  }
+
+  /** Reserved: fill in memory vectors once an embedding provider exists. No-op today. */
+  private backfillMemoryVectors(): void {
+    if (!EmbeddingRegistry.isAvailable()) {
+      return;
+    }
+    MemoryStore.refreshVectors();
   }
 
   /**

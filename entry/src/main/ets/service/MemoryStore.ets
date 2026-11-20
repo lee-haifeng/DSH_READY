@@ -11,9 +11,11 @@
  */
 
 import { Log, clip, newId } from '../common/Utils';
-import { scoreWithKeywords } from '../common/TextRank';
+import { combineScore, scoreWithKeywords } from '../common/TextRank';
+import { cosine, toVector } from '../common/Vector';
 import { readTextFile, writeAtomic } from '../common/FileText';
 import { AppContext } from './AppContext';
+import { EmbeddingRegistry } from './Embedding';
 
 const log = new Log('Memory');
 
@@ -35,6 +37,11 @@ export interface MemoryEntry {
    * model, so the model that writes the memory also records the synonyms it would accept.
    */
   keywords?: Array<string>;
+  /**
+   * Reserved: the embedding of `text`, written only once an `EmbeddingProvider` is
+   * registered. Absent means lexical recall is used for this entry.
+   */
+  vector?: Array<number>;
 }
 
 /** A candidate with its score, used for sorting. */
@@ -51,6 +58,8 @@ const MAX_TEXT_CHARS: number = 240;
 const INJECT_ENTRIES: number = 8;
 /** Character budget for the injected block. */
 const INJECT_CHARS: number = 1200;
+/** How many memories one backfill pass embeds, to bound a single request. */
+const BACKFILL_BATCH: number = 32;
 
 /** Normalised form used for duplicate detection. */
 function normalize(text: string): string {
@@ -59,6 +68,11 @@ function normalize(text: string): string {
 
 export class MemoryStore {
   private static cached: Array<MemoryEntry> | undefined = undefined;
+  /**
+   * Reserved: embedding of the current user message, set before a prompt is assembled.
+   * Undefined while no provider is registered, which keeps the lexical path in charge.
+   */
+  private static pendingQueryVector: Array<number> | undefined = undefined;
 
   /** Path of the memory document. */
   static file(): string {
@@ -103,6 +117,10 @@ export class MemoryStore {
           if (words.length > 0) {
             entry.keywords = words;
           }
+        }
+        const vector: Array<number> | undefined = toVector(row.vector);
+        if (vector !== undefined) {
+          entry.vector = vector;
         }
         entries.push(entry);
       }
@@ -223,12 +241,69 @@ export class MemoryStore {
   /**
    * How well one entry answers a query.
    *
-   * Delegates to `scoreWithKeywords`, which layers literal overlap, saved synonyms and
-   * fuzzy character match. See that function for the tiers.
+   * Lexical tiers come from `scoreWithKeywords` (literal, synonyms, fuzzy). When an
+   * embedding provider is registered and this entry has a vector, cosine similarity is
+   * blended in through `combineScore`; until then the semantic term is 0 and this is
+   * exactly the lexical score.
    */
   static score(query: string, entry: MemoryEntry): number {
     const keywords: Array<string> = entry.keywords === undefined ? [] : entry.keywords;
-    return scoreWithKeywords(query, entry.text, keywords);
+    const lexical: number = scoreWithKeywords(query, entry.text, keywords);
+    const queryVector: Array<number> | undefined = MemoryStore.pendingQueryVector;
+    const entryVector: Array<number> | undefined = entry.vector;
+    if (queryVector === undefined || entryVector === undefined) {
+      return lexical;
+    }
+    return combineScore(lexical, cosine(queryVector, entryVector));
+  }
+
+  /** Reserved: stash the current query embedding before building a prompt. */
+  static setQueryVector(vector: Array<number> | undefined): void {
+    MemoryStore.pendingQueryVector = vector;
+  }
+
+  /** Whether embedded recall is active for this turn. */
+  static semanticReady(): boolean {
+    return MemoryStore.pendingQueryVector !== undefined && EmbeddingRegistry.isAvailable();
+  }
+
+  /**
+   * Reserved: embed memories that do not have a vector yet.
+   *
+   * @returns how many entries were embedded; 0 while no provider is registered
+   */
+  static async refreshVectors(): Promise<number> {
+    const provider = EmbeddingRegistry.provider();
+    if (provider === undefined) {
+      return 0;
+    }
+    const entries: Array<MemoryEntry> = MemoryStore.all();
+    const pending: Array<MemoryEntry> = [];
+    for (let i = 0; i < entries.length && pending.length < BACKFILL_BATCH; i++) {
+      if (entries[i].vector === undefined) {
+        pending.push(entries[i]);
+      }
+    }
+    if (pending.length === 0) {
+      return 0;
+    }
+    const texts: Array<string> = [];
+    for (let i = 0; i < pending.length; i++) {
+      texts.push(pending[i].text);
+    }
+    const vectors: Array<Array<number>> | undefined = await EmbeddingRegistry.embedTexts(texts);
+    if (vectors === undefined) {
+      return 0;
+    }
+    let stamped: number = 0;
+    for (let i = 0; i < pending.length && i < vectors.length; i++) {
+      pending[i].vector = vectors[i];
+      stamped++;
+    }
+    if (stamped > 0) {
+      MemoryStore.persist(entries);
+    }
+    return stamped;
   }
 
   /** Entries matching a query, best first, for the `recall` tool. */

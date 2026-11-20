@@ -182,6 +182,29 @@ pages/Index.ets            应用壳：编排会话、调用 agent、挂载 shee
 `MemoryStore.relevant()` / `search()` 的签名不用动。届时向量应当在写入时算好存进
 `memory.json`（新增 `vector` 字段），查询时只算一次查询向量，避免每轮注入路径上出现网络等待。
 
+### 向量插槽（已预留，未启用）
+
+代码里已经留好了位置，默认是**惰性**的：没有注册 provider 时，整条路径返回 0，行为与纯词法召回完全一致。
+
+| 位置 | 作用 |
+| --- | --- |
+| `service/Embedding.ets` | `EmbeddingProvider` 接口 + `EmbeddingRegistry` 注册表，默认空 |
+| `MemoryEntry.vector` | 记忆的向量字段，随 `memory.json` 持久化，缺失表示该条只能词法召回 |
+| `common/Vector.ets` | `dot` / `norm` / `cosine`（映射到 0–1）/ `unit` / `toVector` |
+| `combineScore()` | 词法分与语义分的合并规则：语义 ≥0.62 且高于词法才采用 |
+| `MemoryStore.setQueryVector()` | 每轮开始前注入当前问题的查询向量 |
+| `MemoryStore.refreshVectors()` | 批量补齐缺失向量，单次最多 32 条 |
+| `Index.send()` | 已接好：provider 不存在就清空向量，存在就先算查询向量再进循环 |
+
+启用只需要三步，其他代码都不用动：
+
+1. 实现 `EmbeddingProvider`（HTTP embeddings 端点，或用 MindSpore Lite 包一个本地模型）
+2. 启动时 `EmbeddingRegistry.register(provider)`
+3. 调用一次 `MemoryStore.refreshVectors()` 回填历史记忆
+
+阈值 0.62 是刻意留高的一版：无关句子在常见 embedding 模型上余弦也常在 0.5 附近，
+门槛低了会把噪音注入每一轮。真正接入时应当用自己模型的实际分布重新校准这个数。
+
 ### 主动 vs 被动
 
 - **主动**：`search_history` / `read_session` 由模型判断「这事以前聊过」时调用，准确率高
