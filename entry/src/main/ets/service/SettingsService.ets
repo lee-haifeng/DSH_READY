@@ -9,10 +9,9 @@ import { preferences } from '@kit.ArkData';
 import { ConfigurationConstant } from '@kit.AbilityKit';
 import { i18n } from '@kit.LocalizationKit';
 import {
-  DEFAULT_BASE_URL, DEFAULT_MAX_TOKENS, EFFORT_HIGH, MODEL_FLASH, PREF_API_KEY_HINT,
+  DEFAULT_BASE_URL, EFFORT_HIGH, MODEL_FLASH, PREF_API_KEY_HINT,
   PREF_AUTO_TITLE, PREF_BASE_URL, PREF_EFFORT, PREF_HAS_KEY, PREF_LANGUAGE, PREF_LAST_SESSION,
-  PREF_MAX_TOKENS, PREF_MODEL_ID, PREF_SEARCH_PROVIDER, PREF_SYSTEM_PROMPT, PREF_TEMPERATURE,
-  PREF_THEME, PREF_STORE
+  PREF_MAX_TOKENS, PREF_MODEL_ID, PREF_SEARCH_PROVIDER, PREF_SYSTEM_PROMPT, PREF_THEME, PREF_STORE
 } from '../common/Constants';
 import { AppSettings } from '../model/Types';
 import { LANG_EN, LANG_ZH } from '../i18n/Strings';
@@ -27,9 +26,6 @@ const log = new Log('Settings');
 export const SEARCH_DUCKDUCKGO: string = 'duckduckgo';
 export const SEARCH_BING: string = 'bing';
 
-/** Value meaning "let the provider decide" for temperature. */
-export const TEMPERATURE_UNSET: number = -1;
-
 /** Build the defaults, used on first launch and by the reset action. */
 export function defaultSettings(): AppSettings {
   return {
@@ -37,7 +33,6 @@ export function defaultSettings(): AppSettings {
     modelId: MODEL_FLASH,
     effort: EFFORT_HIGH,
     maxTokens: 16384,
-    temperature: TEMPERATURE_UNSET,
     systemPrompt: '',
     language: detectLanguage(),
     themeMode: THEME_SYSTEM,
@@ -119,7 +114,6 @@ export class SettingsService {
       modelId: SettingsService.readString(PREF_MODEL_ID, defaults.modelId),
       effort: SettingsService.readString(PREF_EFFORT, defaults.effort),
       maxTokens: SettingsService.readNumber(PREF_MAX_TOKENS, defaults.maxTokens),
-      temperature: SettingsService.readNumber(PREF_TEMPERATURE, defaults.temperature),
       systemPrompt: SettingsService.readString(PREF_SYSTEM_PROMPT, defaults.systemPrompt),
       language: SettingsService.readString(PREF_LANGUAGE, defaults.language),
       themeMode: SettingsService.readString(PREF_THEME, defaults.themeMode),
@@ -140,7 +134,6 @@ export class SettingsService {
       store.putSync(PREF_MODEL_ID, settings.modelId);
       store.putSync(PREF_EFFORT, settings.effort);
       store.putSync(PREF_MAX_TOKENS, settings.maxTokens);
-      store.putSync(PREF_TEMPERATURE, settings.temperature);
       store.putSync(PREF_SYSTEM_PROMPT, settings.systemPrompt);
       store.putSync(PREF_LANGUAGE, settings.language);
       store.putSync(PREF_THEME, settings.themeMode);
@@ -161,7 +154,6 @@ export class SettingsService {
       modelId: current.modelId,
       effort: current.effort,
       maxTokens: current.maxTokens,
-      temperature: current.temperature,
       systemPrompt: current.systemPrompt,
       language: current.language,
       themeMode: current.themeMode,

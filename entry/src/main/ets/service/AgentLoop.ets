@@ -292,9 +292,6 @@ export class AgentRuntime {
       const outputConfig: WireOutputConfig = { effort: effort };
       request.output_config = outputConfig;
     }
-    if (this.settings.temperature >= 0) {
-      request.temperature = this.settings.temperature;
-    }
     return request;
   }
 

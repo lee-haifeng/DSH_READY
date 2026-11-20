@@ -66,6 +66,7 @@ export interface WireRequest {
   system?: string;
   thinking: WireThinking;
   output_config?: WireOutputConfig;
+  /** Accepted by the endpoint, but this client deliberately never sends it. */
   temperature?: number;
   tools?: Array<WireTool>;
 }

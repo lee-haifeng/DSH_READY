@@ -33,9 +33,6 @@ export const MODEL_PRO: string = 'deepseek-v4-pro';
 /** Advisory context windows, mirroring the desktop catalog. */
 export const CONTEXT_WINDOW: number = 1048576;
 
-/** Default per-request output cap used by the desktop adapter. */
-export const DEFAULT_MAX_TOKENS: number = 256000;
-
 /** Catalog entries shown before the provider listing is fetched. */
 export interface ModelEntry {
   id: string;
@@ -60,7 +57,6 @@ export const PREF_BASE_URL: string = 'base_url';
 export const PREF_MODEL_ID: string = 'model_id';
 export const PREF_EFFORT: string = 'reasoning_effort';
 export const PREF_MAX_TOKENS: string = 'max_tokens';
-export const PREF_TEMPERATURE: string = 'temperature';
 export const PREF_SYSTEM_PROMPT: string = 'system_prompt';
 export const PREF_LANGUAGE: string = 'language';
 export const PREF_THEME: string = 'theme';

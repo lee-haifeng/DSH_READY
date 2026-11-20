@@ -57,9 +57,6 @@ import { translate } from '../i18n/Strings';
 const LANG_ZH: string = 'zh';
 const LANG_EN: string = 'en';
 
-/** temperature 的“不设置”哨兵值，与 SettingsService 内部约定保持一致。 */
-const TEMPERATURE_UNSET_VALUE: number = -1;
-
 /** 最大输出长度滑块的取值范围（tokens）。 */
 const MAX_TOKENS_MIN: number = 1024;
 /** Matches the upstream adapter default cap of 256,000 tokens. */
@@ -71,11 +68,6 @@ const MAX_TOKENS_FALLBACK: number = 16384;
  * thousands of tokens, so precise dragging is impossible and the control lies about itself.
  */
 const MAX_TOKENS_PRESETS: Array<number> = [4096, 16384, 65536, 262144];
-
-/** 随机性滑块的取值范围。 */
-const TEMPERATURE_MIN: number = 0;
-const TEMPERATURE_MAX: number = 2;
-const TEMPERATURE_STEP: number = 0.1;
 
 /** 设置页正文 / 行标签字号（视觉稿要求 15fp，现有令牌里没有 15，故本地定义）。 */
 const CONTENT_FONT: number = 15;
@@ -93,7 +85,6 @@ const FALLBACK_SETTINGS: AppSettings = {
   modelId: MODEL_FLASH,
   effort: EFFORT_HIGH,
   maxTokens: MAX_TOKENS_FALLBACK,
-  temperature: TEMPERATURE_UNSET_VALUE,
   systemPrompt: '',
   language: LANG_ZH,
   themeMode: THEME_SYSTEM,
@@ -121,15 +112,12 @@ export struct SettingsSheet {
   @State keyBusy: boolean = false;
   /** 最大输出长度滑块拖动期间的本地回显值。 */
   @State maxTokensDraft: number = MAX_TOKENS_FALLBACK;
-  /** 随机性滑块拖动期间的本地回显值（0 表示“默认 / 不设置”）。 */
-  @State temperatureDraft: number = TEMPERATURE_MIN;
   /** 自定义人设草稿，失焦 / 关闭时落盘。 */
   @State systemPromptDraft: string = '';
 
   aboutToAppear(): void {
     this.settings = SettingsService.get();
     this.maxTokensDraft = this.clampMaxTokens(this.settings.maxTokens);
-    this.temperatureDraft = this.clampTemperatureDraft(this.settings.temperature);
     this.systemPromptDraft = this.settings.systemPrompt;
     this.apiKeyDraft = '';
     this.editingKey = false;
@@ -173,7 +161,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -192,7 +179,6 @@ export struct SettingsSheet {
       modelId: modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -211,7 +197,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -230,26 +215,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: maxTokens,
-      temperature: s.temperature,
-      systemPrompt: s.systemPrompt,
-      language: s.language,
-      themeMode: s.themeMode,
-      autoTitle: s.autoTitle,
-      searchProvider: s.searchProvider,
-      hasApiKey: s.hasApiKey,
-      apiKeyHint: s.apiKeyHint
-    };
-    return next;
-  }
-
-  private withTemperature(temperature: number): AppSettings {
-    const s: AppSettings = this.settings;
-    const next: AppSettings = {
-      baseUrl: s.baseUrl,
-      modelId: s.modelId,
-      effort: s.effort,
-      maxTokens: s.maxTokens,
-      temperature: temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -268,7 +233,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -287,7 +251,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: themeMode,
@@ -306,7 +269,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: language,
       themeMode: s.themeMode,
@@ -325,7 +287,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -344,7 +305,6 @@ export struct SettingsSheet {
       modelId: s.modelId,
       effort: s.effort,
       maxTokens: s.maxTokens,
-      temperature: s.temperature,
       systemPrompt: s.systemPrompt,
       language: s.language,
       themeMode: s.themeMode,
@@ -440,48 +400,6 @@ export struct SettingsSheet {
       return;
     }
     this.applySettings(this.withMaxTokens(next));
-  }
-
-  /** 把滑动值转换成持久化值：0 视为“不设置”（-1），其余按 0.1 取整。 */
-  private normalizeTemperature(value: number): number {
-    const tenths: number = Math.round(value * 10);
-    if (tenths <= 0) {
-      return TEMPERATURE_UNSET_VALUE;
-    }
-    if (tenths > TEMPERATURE_MAX * 10) {
-      return TEMPERATURE_MAX;
-    }
-    return tenths / 10;
-  }
-
-  /** 拖动开始时把已存储的 temperature 映射成滑块草稿值。 */
-  private clampTemperatureDraft(temperature: number): number {
-    if (temperature < TEMPERATURE_MIN) {
-      return TEMPERATURE_MIN;
-    }
-    if (temperature > TEMPERATURE_MAX) {
-      return TEMPERATURE_MAX;
-    }
-    return temperature;
-  }
-
-  /** 保存随机性；滑块松手时才落盘。 */
-  private commitTemperature(value: number): void {
-    const stored: number = this.normalizeTemperature(value);
-    if (stored === this.settings.temperature) {
-      return;
-    }
-    this.applySettings(this.withTemperature(stored));
-  }
-
-  /** 随机性回显文案：0 表示让服务端使用默认值。 */
-  private temperatureLabel(): string {
-    const tenths: number = Math.round(this.temperatureDraft * 10);
-    if (tenths <= 0) {
-      // i18n 表里没有 temperature 的“默认” key，为避免改动其它文件，这里本地兜底。
-      return this.lang === LANG_EN ? 'Default' : '默认';
-    }
-    return (tenths / 10).toFixed(1);
   }
 
   /** 人设只在失焦 / 关闭面板 / 组件销毁时写入，避免逐字符同步落盘。 */
@@ -888,49 +806,7 @@ export struct SettingsSheet {
   }
 
   // ---------------------------------------------------------------------------
-  // 6. 随机性（temperature）
-  // ---------------------------------------------------------------------------
-
-  @Builder
-  temperatureCard() {
-    Column({ space: SPACE_MD }) {
-      this.cardTitle(translate(this.lang, 'settings.temperature'))
-      Row() {
-        Text(this.temperatureLabel())
-          .fontSize(CONTENT_FONT)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.palette.accent)
-        Blank()
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      Slider({
-        value: this.temperatureDraft,
-        min: TEMPERATURE_MIN,
-        max: TEMPERATURE_MAX,
-        step: TEMPERATURE_STEP
-      })
-        .width('100%')
-        .blockColor(this.palette.accent)
-        .selectedColor(this.palette.accent)
-        .trackColor(this.palette.surfaceAlt)
-        .onChange((value: number, mode: SliderChangeMode) => {
-          this.temperatureDraft = value;
-          if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-            this.commitTemperature(value);
-          }
-        })
-      this.noteText(translate(this.lang, 'settings.temperature.note'))
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .backgroundColor(this.palette.surface)
-    .borderRadius(RADIUS_MD)
-    .padding(SPACE_LG)
-  }
-
-  // ---------------------------------------------------------------------------
-  // 7. 自定义人设
+  // 6. 自定义人设
   // ---------------------------------------------------------------------------
 
   @Builder
@@ -1170,7 +1046,6 @@ export struct SettingsSheet {
           this.modelCard()
           this.effortCard()
           this.maxTokensCard()
-          this.temperatureCard()
           this.personaCard()
           this.appearanceCard()
           this.languageCard()

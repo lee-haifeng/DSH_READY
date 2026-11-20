@@ -150,7 +150,6 @@ export interface AppSettings {
   modelId: string;
   effort: string;
   maxTokens: number;
-  temperature: number;
   systemPrompt: string;
   language: string;
   themeMode: string;
