@@ -1,5 +1,5 @@
 /**
- * Global constants for DSH Mobile.
+ * Global constants for DSH Ready.
  *
  * Ported from the DeepSeek Harness desktop client (deepseek-harness, v0.2.2-rc.5).
  * The desktop client talks to DeepSeek's Anthropic-Messages-compatible endpoint; the
@@ -7,7 +7,7 @@
  */
 
 /** Human readable product name, shown in the About page and window title. */
-export const APP_NAME: string = 'DSH Mobile';
+export const APP_NAME: string = 'DSH Ready';
 
 /** Upstream project this app is ported from. */
 export const UPSTREAM_REPO: string = 'https://github.com/deepseek-ai/deepseek-harness';
@@ -73,7 +73,12 @@ export const SESSIONS_DIR: string = 'sessions';
 /** File holding the session ordering / metadata index. */
 export const SESSION_INDEX_FILE: string = 'index.json';
 
-/** Key used by the Asset Store for the DeepSeek API key. */
+/**
+ * Key used by the Asset Store for the DeepSeek API key.
+ *
+ * Deliberately keeps the historical `dsh_mobile` prefix: it is a credential-store
+ * identifier, not a display name, and changing it would orphan every stored key.
+ */
 export const ASSET_ALIAS: string = 'dsh_mobile_api_key';
 
 /** Reasoning effort values accepted by the Messages endpoint. */

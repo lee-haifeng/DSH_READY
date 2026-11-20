@@ -1,6 +1,6 @@
 """Generate the app icon set.
 
-Draws the DSH Mobile mark: a diamond outline around a solid diamond, on a deep
+Draws the DSH Ready mark: a diamond outline around a solid diamond, on a deep
 navy field with a soft accent glow. Everything is rendered at 4x and downsampled
 so the layered icon stays crisp on high density screens.
 

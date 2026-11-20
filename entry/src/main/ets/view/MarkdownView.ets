@@ -1,7 +1,7 @@
 /**
  * MarkdownView —— 聊天消息气泡的 Markdown 富文本渲染组件。
  *
- * 设计约束（与 DSH Mobile 的聊天流式输出对齐）：
+ * 设计约束（与 DSH Ready 的聊天流式输出对齐）：
  *  - 入参只有 Markdown 源码 text（流式过程中被高频更新）和只读样式令牌 palette；
  *  - text 变化 -> @Watch 重建 @State blocks（全量重解析，无节流、无定时器）；
  *  - 解析器对不完整输入健壮：未闭合围栏代码块、未闭合 ** 粗体、只有一个 | 的行、

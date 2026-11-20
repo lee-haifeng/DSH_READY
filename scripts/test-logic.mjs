@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 
 const ROOT = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const ETS = join(ROOT, 'entry', 'src', 'main', 'ets');
-const OUT = join(tmpdir(), 'dsh-mobile-logic-test');
+const OUT = join(tmpdir(), 'dsh-ready-logic-test');
 
 let passed = 0;
 let failed = 0;

@@ -1,4 +1,4 @@
-# DSH Mobile build helper.
+# DSH Ready build helper.
 #
 # The HarmonyOS toolchain needs a few environment variables before hvigor can run, and
 # this workspace keeps its build caches inside .buildhome so a build never writes into

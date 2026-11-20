@@ -2,7 +2,7 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "DSH Mobile entry module"
+      "value": "DSH Ready entry module"
     },
     {
       "name": "EntryAbility_desc",
@@ -10,7 +10,7 @@
     },
     {
       "name": "EntryAbility_label",
-      "value": "DSH Mobile"
+      "value": "DSH Ready"
     },
     {
       "name": "permission_internet_reason",

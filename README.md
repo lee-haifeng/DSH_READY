@@ -1,4 +1,4 @@
-# DSH Mobile
+# DSH Ready
 
 把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版搬到鸿蒙手机上的原生客户端。
 自用为主，顺手开源。

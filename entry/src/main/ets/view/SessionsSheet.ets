@@ -1,7 +1,7 @@
 /**
  * SessionsSheet —— 会话列表 sheet（从聊天页弹出）。
  *
- * 设计约束（与 DSH Mobile 的其他 sheet 对齐）：
+ * 设计约束（与 DSH Ready 的其他 sheet 对齐）：
  *  - 数据全部来自 SessionStore：空搜索时 list()，有搜索词时 search()；
  *  - 列表在 load() 里压平成 SessionRow 数组（kind = header / row），
  *    渲染层只用一个 ForEach，避免嵌套分组结构带来的刷新歧义；

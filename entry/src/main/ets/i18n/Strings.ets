@@ -10,7 +10,7 @@ export const LANG_ZH: string = 'zh';
 export const LANG_EN: string = 'en';
 
 const ZH: Record<string, string> = {
-  'app.name': 'DSH Mobile',
+  'app.name': 'DSH Ready',
   'app.tagline': 'DeepSeek Harness 鸿蒙手机版',
 
   'nav.chat': '对话',
@@ -218,7 +218,7 @@ const ZH: Record<string, string> = {
 };
 
 const EN: Record<string, string> = {
-  'app.name': 'DSH Mobile',
+  'app.name': 'DSH Ready',
   'app.tagline': 'DeepSeek Harness for HarmonyOS',
 
   'nav.chat': 'Chat',
