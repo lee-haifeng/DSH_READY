@@ -62,9 +62,15 @@ const TEMPERATURE_UNSET_VALUE: number = -1;
 
 /** 最大输出长度滑块的取值范围（tokens）。 */
 const MAX_TOKENS_MIN: number = 1024;
-const MAX_TOKENS_MAX: number = 65536;
+/** Matches the upstream adapter default cap of 256,000 tokens. */
+const MAX_TOKENS_MAX: number = 262144;
 const MAX_TOKENS_STEP: number = 1024;
 const MAX_TOKENS_FALLBACK: number = 16384;
+/**
+ * Presets instead of a slider: 1K–256K on a phone-width track would make one pixel worth
+ * thousands of tokens, so precise dragging is impossible and the control lies about itself.
+ */
+const MAX_TOKENS_PRESETS: Array<number> = [4096, 16384, 65536, 262144];
 
 /** 随机性滑块的取值范围。 */
 const TEMPERATURE_MIN: number = 0;
@@ -416,6 +422,14 @@ export struct SettingsSheet {
       return MAX_TOKENS_MAX;
     }
     return stepped;
+  }
+
+  /** `4096` → `4K`，让预设按钮在两种语言下都保持短标签。 */
+  private presetLabel(value: number): string {
+    if (value >= 1024 && value % 1024 === 0) {
+      return `${Math.round(value / 1024)}K`;
+    }
+    return `${value}`;
   }
 
   /** 保存最大输出长度；滑块松手时才落盘。 */
@@ -838,35 +852,33 @@ export struct SettingsSheet {
   maxTokensCard() {
     Column({ space: SPACE_MD }) {
       this.cardTitle(translate(this.lang, 'settings.maxTokens'))
-      Row() {
-        Text(`${this.maxTokensDraft}`)
-          .fontSize(CONTENT_FONT)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.palette.accent)
-        Text(translate(this.lang, 'chat.tokens'))
-          .fontSize(FONT_SM)
-          .fontColor(this.palette.textSecondary)
-          .margin({ left: SPACE_XS })
-        Blank()
+      Row({ space: SPACE_SM }) {
+        ForEach(MAX_TOKENS_PRESETS, (preset: number) => {
+          Text(this.presetLabel(preset))
+            .fontSize(FONT_SM)
+            .fontColor(this.maxTokensDraft === preset ? this.palette.onAccent : this.palette.textPrimary)
+            .padding({ left: SPACE_MD, right: SPACE_MD, top: SPACE_SM, bottom: SPACE_SM })
+            .backgroundColor(this.maxTokensDraft === preset ? this.palette.accent : this.palette.surfaceAlt)
+            .borderRadius(RADIUS_MD)
+            .onClick(() => {
+              this.commitMaxTokens(preset);
+            })
+        }, (preset: number) => `maxtok-${preset}`)
       }
       .width('100%')
-      .alignItems(VerticalAlign.Center)
-      Slider({
-        value: this.maxTokensDraft,
-        min: MAX_TOKENS_MIN,
-        max: MAX_TOKENS_MAX,
-        step: MAX_TOKENS_STEP
-      })
-        .width('100%')
-        .blockColor(this.palette.accent)
-        .selectedColor(this.palette.accent)
-        .trackColor(this.palette.surfaceAlt)
-        .onChange((value: number, mode: SliderChangeMode) => {
-          this.maxTokensDraft = this.clampMaxTokens(value);
-          if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
-            this.commitMaxTokens(value);
-          }
-        })
+
+      Row({ space: SPACE_SM }) {
+        Text(translate(this.lang, 'settings.maxTokens.note'))
+          .fontSize(FONT_XS)
+          .fontColor(this.palette.textTertiary)
+          .lineHeight(16)
+          .layoutWeight(1)
+        Text(`${this.maxTokensDraft}`)
+          .fontSize(FONT_XS)
+          .fontColor(this.palette.accent)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -908,6 +920,7 @@ export struct SettingsSheet {
             this.commitTemperature(value);
           }
         })
+      this.noteText(translate(this.lang, 'settings.temperature.note'))
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
