@@ -100,7 +100,8 @@ splitTypeImports(join(OUT, 'Transcript.ts'), typeNames);
 
 const { buildRenderItems, textLength } = await import(pathToFileURL(join(OUT, 'Render.ts')).href);
 const Types = await import(pathToFileURL(join(OUT, 'Types.ts')).href);
-const { tokenize, relevance, rank } = await import(pathToFileURL(join(OUT, 'TextRank.ts')).href);
+const { tokenize, relevance, rank, similarity, scoreWithKeywords } =
+  await import(pathToFileURL(join(OUT, 'TextRank.ts')).href);
 const { clipText, parseFacts } = await import(pathToFileURL(join(OUT, 'FactParse.ts')).href);
 const { buildTranscript } = await import(pathToFileURL(join(OUT, 'Transcript.ts')).href);
 
@@ -261,20 +262,75 @@ function toolMessage(id, toolCallId, name, text, isError) {
 /* ------------------------------------------------------- fact extraction */
 
 {
+  const texts = (facts) => facts.map((f) => f.text);
+
   check('clip keeps short text', clipText('abc', 10), 'abc');
   check('clip truncates', clipText('abcdef', 3), 'abc…');
   check('clip trims', clipText('  ab  ', 10), 'ab');
 
-  check('plain array', parseFacts('["A fact","B fact"]', 3, 200), ['A fact', 'B fact']);
-  check('fenced array', parseFacts('```json\n["Fenced fact"]\n```', 3, 200), ['Fenced fact']);
-  check('prose around array', parseFacts('Here you go: ["Wrapped fact"] — done', 3, 200), ['Wrapped fact']);
+  check('plain array', texts(parseFacts('["A fact","B fact"]', 3, 200)), ['A fact', 'B fact']);
+  check('fenced array', texts(parseFacts('```json\n["Fenced fact"]\n```', 3, 200)), ['Fenced fact']);
+  check('prose around array', texts(parseFacts('Here you go: ["Wrapped fact"] — done', 3, 200)), ['Wrapped fact']);
   check('empty array', parseFacts('[]', 3, 200), []);
   check('no json at all', parseFacts('I could not find anything.', 3, 200), []);
   check('broken json', parseFacts('["unclosed"', 3, 200), []);
-  check('non strings dropped', parseFacts('["ab", 3, null, "Real fact here"]', 3, 200), ['Real fact here']);
-  check('duplicates dropped', parseFacts('["Same fact","same fact"]', 3, 200), ['Same fact']);
-  check('respects max facts', parseFacts('["a1b2","b2c3","c3d4","d4e5"]', 2, 200), ['a1b2', 'b2c3']);
-  check('respects max chars', parseFacts('["0123456789"]', 3, 4), ['0123…']);
+  check('non strings dropped', texts(parseFacts('["ab", 3, null, "Real fact here"]', 3, 200)), ['Real fact here']);
+  check('duplicates dropped', texts(parseFacts('["Same fact","same fact"]', 3, 200)), ['Same fact']);
+  check('respects max facts', texts(parseFacts('["a1b2","b2c3","c3d4","d4e5"]', 2, 200)), ['a1b2', 'b2c3']);
+  check('respects max chars', texts(parseFacts('["0123456789"]', 3, 4)), ['0123…']);
+
+  // Enriched shape: synonyms travel with the fact.
+  const enriched = parseFacts('[{"fact":"用户在做鸿蒙移植","keywords":["鸿蒙","移植"]}]', 3, 200);
+  check('object fact text', enriched[0].text, '用户在做鸿蒙移植');
+  check('object fact keywords', enriched[0].keywords, ['鸿蒙', '移植']);
+
+  // Models sometimes use another field name; accept it rather than losing the fact.
+  check('text field alias', parseFacts('[{"text":"The user prefers Chinese"}]', 3, 200)[0].text,
+    'The user prefers Chinese');
+  check('content field alias', parseFacts('[{"content":"The user runs HarmonyOS"}]', 3, 200)[0].text,
+    'The user runs HarmonyOS');
+
+  // Keyword hygiene: drop junk, de-duplicate, cap the list.
+  check('keywords filtered', parseFacts('[{"fact":"Some fact here","keywords":["ab","","a",3]}]', 3, 200)[0].keywords,
+    ['ab']);
+  check('keywords deduped', parseFacts('[{"fact":"Some fact here","keywords":["same","Same"]}]', 3, 200)[0].keywords,
+    ['same']);
+  check('keywords capped', parseFacts('[{"fact":"Some fact here","keywords":["k1","k2","k3","k4","k5"]}]', 3, 200)[0].keywords,
+    ['k1', 'k2', 'k3', 'k4']);
+
+  // Mixed array: a model may answer in both shapes at once.
+  const mixed = parseFacts('["Plain fact",{"fact":"Object fact","keywords":["kw"]}]', 3, 200);
+  check('mixed shapes', texts(mixed), ['Plain fact', 'Object fact']);
+  check('mixed keywords', mixed[1].keywords, ['kw']);
+}
+
+/* ------------------------------------------------------------ fuzzy match */
+
+{
+  ok('identical is 1', similarity('鸿蒙移植', '鸿蒙移植') === 1);
+  ok('prefix overlap is high', similarity('鸿蒙移植', '鸿蒙移植项目') > 0.5,
+    `${similarity('鸿蒙移植', '鸿蒙移植项目')}`);
+  ok('related phrasing overlaps', similarity('鸿蒙移植项目', '移植鸿蒙项目') > 0.3,
+    `${similarity('鸿蒙移植项目', '移植鸿蒙项目')}`);
+  check('unrelated is 0', similarity('鸿蒙移植', '天气预报'), 0);
+  check('too short is 0', similarity('a', 'ab'), 0);
+  ok('latin typo still matches', similarity('harmonyos', 'harmonyso') > 0.4,
+    `${similarity('harmonyos', 'harmonyso')}`);
+}
+
+/* -------------------------------------------------- memory scoring tiers */
+
+{
+  ok('literal overlap scores', scoreWithKeywords('鸿蒙项目', '用户在做一个鸿蒙项目', []) > 0);
+  // The whole point of stored synonyms: the wording never appears in the fact itself.
+  ok('synonym bridges wording', scoreWithKeywords('锻炼', '用户喜欢健身', ['锻炼', '运动']) > 0,
+    `${scoreWithKeywords('锻炼', '用户喜欢健身', ['锻炼', '运动'])}`);
+  check('without synonyms it misses', scoreWithKeywords('锻炼', '用户喜欢健身', []), 0);
+  ok('synonym outranks incidental hit',
+    scoreWithKeywords('健身', '用户喜欢健身', ['健身']) > scoreWithKeywords('健身', '用户喜欢健身', []));
+  ok('typo still matches via fuzzy', scoreWithKeywords('harmonyos', 'harmonyso', []) > 0,
+    `${scoreWithKeywords('harmonyos', 'harmonyso', [])}`);
+  check('unrelated scores zero', scoreWithKeywords('天气预报', '用户喜欢健身', ['锻炼']), 0);
 }
 
 /* ------------------------------------------------------------ transcripts */

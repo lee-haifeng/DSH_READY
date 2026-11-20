@@ -11,7 +11,7 @@
  */
 
 import { Log, clip, newId } from '../common/Utils';
-import { rank, relevance } from '../common/TextRank';
+import { scoreWithKeywords } from '../common/TextRank';
 import { readTextFile, writeAtomic } from '../common/FileText';
 import { AppContext } from './AppContext';
 
@@ -28,6 +28,19 @@ export interface MemoryEntry {
   sourceSession: string;
   /** Pinned entries are injected regardless of the current question. */
   pinned: boolean;
+  /**
+   * Alternative words that should also retrieve this fact.
+   *
+   * This is the stand-in for an embedding index: a small phone has no room for a vector
+   * model, so the model that writes the memory also records the synonyms it would accept.
+   */
+  keywords?: Array<string>;
+}
+
+/** A candidate with its score, used for sorting. */
+interface ScoredMemory {
+  entry: MemoryEntry;
+  score: number;
 }
 
 /** Hard cap on stored entries; the oldest unpinned entries are evicted beyond it. */
@@ -71,14 +84,27 @@ export class MemoryStore {
         if (row === null || row === undefined || row.text === undefined) {
           continue;
         }
-        entries.push({
+        const entry: MemoryEntry = {
           id: row.id === undefined ? newId('mem') : row.id,
           text: row.text,
           createdAt: row.createdAt === undefined ? Date.now() : row.createdAt,
           updatedAt: row.updatedAt === undefined ? Date.now() : row.updatedAt,
           sourceSession: row.sourceSession === undefined ? '' : row.sourceSession,
           pinned: row.pinned === true
-        });
+        };
+        if (row.keywords !== undefined && Array.isArray(row.keywords)) {
+          const words: Array<string> = [];
+          const source: Array<Object> = row.keywords as Array<Object>;
+          for (let j = 0; j < source.length; j++) {
+            if (typeof source[j] === 'string') {
+              words.push(source[j] as string);
+            }
+          }
+          if (words.length > 0) {
+            entry.keywords = words;
+          }
+        }
+        entries.push(entry);
       }
       MemoryStore.cached = entries;
       return entries;
@@ -104,9 +130,10 @@ export class MemoryStore {
    *
    * @param text the fact, in the user's own terms
    * @param sourceSession session it came from
+   * @param keywords synonyms that should also retrieve this fact
    * @returns the stored entry, or `undefined` when the text was empty
    */
-  static add(text: string, sourceSession: string): MemoryEntry | undefined {
+  static add(text: string, sourceSession: string, keywords: Array<string>): MemoryEntry | undefined {
     const clean: string = clip(text, MAX_TEXT_CHARS);
     if (clean.length === 0) {
       return undefined;
@@ -120,6 +147,9 @@ export class MemoryStore {
         if (sourceSession.length > 0) {
           entries[i].sourceSession = sourceSession;
         }
+        if (keywords.length > 0) {
+          entries[i].keywords = keywords;
+        }
         MemoryStore.persist(entries);
         return entries[i];
       }
@@ -132,6 +162,9 @@ export class MemoryStore {
       sourceSession: sourceSession,
       pinned: false
     };
+    if (keywords.length > 0) {
+      entry.keywords = keywords;
+    }
     entries.push(entry);
     while (entries.length > MAX_ENTRIES) {
       let victim: number = -1;
@@ -187,16 +220,32 @@ export class MemoryStore {
   }
 
   /** Facts matching a query, best first, for the `recall` tool. */
+  /**
+   * How well one entry answers a query.
+   *
+   * Delegates to `scoreWithKeywords`, which layers literal overlap, saved synonyms and
+   * fuzzy character match. See that function for the tiers.
+   */
+  static score(query: string, entry: MemoryEntry): number {
+    const keywords: Array<string> = entry.keywords === undefined ? [] : entry.keywords;
+    return scoreWithKeywords(query, entry.text, keywords);
+  }
+
+  /** Entries matching a query, best first, for the `recall` tool. */
   static search(query: string, limit: number): Array<MemoryEntry> {
     const entries: Array<MemoryEntry> = MemoryStore.all();
-    const texts: Array<string> = [];
+    const scored: Array<ScoredMemory> = [];
     for (let i = 0; i < entries.length; i++) {
-      texts.push(entries[i].text);
+      const score: number = MemoryStore.score(query, entries[i]);
+      if (score <= 0) {
+        continue;
+      }
+      scored.push({ entry: entries[i], score: score });
     }
-    const order: Array<number> = rank(query, texts, limit);
+    scored.sort((a: ScoredMemory, b: ScoredMemory) => b.score - a.score);
     const out: Array<MemoryEntry> = [];
-    for (let i = 0; i < order.length; i++) {
-      out.push(entries[order[i]]);
+    for (let i = 0; i < scored.length && i < limit; i++) {
+      out.push(scored[i].entry);
     }
     return out;
   }
@@ -224,21 +273,23 @@ export class MemoryStore {
       budget -= entries[i].text.length;
     }
     if (query.trim().length > 0 && budget > 0) {
-      const candidates: Array<MemoryEntry> = [];
-      const texts: Array<string> = [];
+      const scored: Array<ScoredMemory> = [];
       for (let i = 0; i < entries.length; i++) {
         if (seen.has(entries[i].id)) {
           continue;
         }
-        candidates.push(entries[i]);
-        texts.push(entries[i].text);
+        const score: number = MemoryStore.score(query, entries[i]);
+        if (score <= 0) {
+          continue;
+        }
+        scored.push({ entry: entries[i], score: score });
       }
-      const order: Array<number> = rank(query, texts, INJECT_ENTRIES);
-      for (let i = 0; i < order.length; i++) {
+      scored.sort((a: ScoredMemory, b: ScoredMemory) => b.score - a.score);
+      for (let i = 0; i < scored.length; i++) {
         if (picked.length >= INJECT_ENTRIES || budget <= 0) {
           break;
         }
-        const entry: MemoryEntry = candidates[order[i]];
+        const entry: MemoryEntry = scored[i].entry;
         if (seen.has(entry.id)) {
           continue;
         }
@@ -248,10 +299,5 @@ export class MemoryStore {
       }
     }
     return picked;
-  }
-
-  /** Relevance of one entry, used by tests and the memory screen. */
-  static score(query: string, entry: MemoryEntry): number {
-    return relevance(query, entry.text);
   }
 }

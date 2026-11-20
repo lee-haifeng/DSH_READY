@@ -327,9 +327,9 @@ struct Index {
     const watermark: number = session.messages.length;
     try {
       const existing = MemoryStore.all();
-      const facts: Array<string> = await MemoryExtractor.extract(settings, apiKey, transcript, existing);
+      const facts = await MemoryExtractor.extract(settings, apiKey, transcript, existing);
       for (let i = 0; i < facts.length; i++) {
-        MemoryStore.add(facts[i], session.id);
+        MemoryStore.add(facts[i].text, session.id, facts[i].keywords);
       }
       session.memoryUpto = watermark;
       // Only persist when the user is still looking at the session we summarised.

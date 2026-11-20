@@ -83,7 +83,7 @@ export function toolDefs(): Array<ToolDef> {
   const remember: ToolDef = {
     name: TOOL_REMEMBER,
     description: 'Save one durable fact about the user so later conversations recall it without asking again. Only for things that stay true: their projects, preferences, standing instructions. Never for transient details of the current task.',
-    schemaJson: '{"type":"object","properties":{"text":{"type":"string","description":"One self-contained sentence, understandable with no surrounding context"}},"required":["text"]}'
+    schemaJson: '{"type":"object","properties":{"text":{"type":"string","description":"One self-contained sentence, understandable with no surrounding context"},"keywords":{"type":"array","items":{"type":"string"},"description":"Two to four short alternative words a user might use when asking about this fact (synonyms, or the English and Chinese form of the same idea)"}},"required":["text"]}'
   };
   const recall: ToolDef = {
     name: TOOL_RECALL,

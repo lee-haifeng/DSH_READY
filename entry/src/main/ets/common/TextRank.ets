@@ -155,3 +155,102 @@ export function rank(query: string, candidates: Array<string>, limit: number): A
   }
   return scored.slice(0, limit);
 }
+
+/** Strip everything that carries no meaning, keeping Latin words and CJK ideographs. */
+function compact(text: string): string {
+  const lower: string = text.toLowerCase();
+  let out: string = '';
+  for (let i = 0; i < lower.length; i++) {
+    const code: number = lower.charCodeAt(i);
+    if (isWordChar(code) || isCjk(code)) {
+      out += lower.charAt(i);
+    }
+  }
+  return out;
+}
+
+/**
+ * Fuzzy matches must reach this before they count at all; below it, unrelated short
+ * sentences overlap enough by accident to produce noise.
+ */
+export const FUZZY_FLOOR: number = 0.4;
+
+/**
+ * Score a stored fact against a query, using its synonyms when the words differ.
+ *
+ * Three tiers, cheapest first:
+ * 1. literal token overlap with the fact text
+ * 2. token overlap with the synonyms saved alongside it — this is what bridges true
+ *    synonyms ("健身" vs "锻炼") without an embedding model
+ * 3. fuzzy character overlap, which catches typos and reordered phrasing
+ *
+ * @param query the user's latest message
+ * @param text the stored fact
+ * @param keywords synonyms saved with the fact, possibly empty
+ */
+export function scoreWithKeywords(query: string, text: string, keywords: Array<string>): number {
+  let best: number = relevance(query, text);
+  if (keywords.length > 0) {
+    let joined: string = '';
+    for (let i = 0; i < keywords.length; i++) {
+      joined += i === 0 ? keywords[i] : ` ${keywords[i]}`;
+    }
+    // A synonym hit is a deliberate match, so it outranks an incidental word hit.
+    const synonymScore: number = relevance(query, joined) * 1.2;
+    if (synonymScore > best) {
+      best = synonymScore;
+    }
+  }
+  if (best <= 0) {
+    const fuzzy: number = similarity(query, text);
+    if (fuzzy >= FUZZY_FLOOR) {
+      best = fuzzy * 0.5;
+    }
+  }
+  return best;
+}
+
+/**
+ * Dice coefficient over character bigrams.
+ *
+ * Catches typos, inflections and reordered phrasing that exact matching misses. It cannot
+ * bridge true synonyms — that is what `scoreWithKeywords` uses the synonym list for.
+ *
+ * @returns 0 when either side is too short or nothing overlaps
+ */
+export function similarity(a: string, b: string): number {
+  const x: string = compact(a);
+  const y: string = compact(b);
+  if (x.length < 2 || y.length < 2) {
+    return 0;
+  }
+  const bagX: Map<string, number> = new Map();
+  for (let i = 0; i + 1 < x.length; i++) {
+    const gram: string = x.slice(i, i + 2);
+    const seen: number | undefined = bagX.get(gram);
+    bagX.set(gram, seen === undefined ? 1 : seen + 1);
+  }
+  let overlap: number = 0;
+  let total: number = 0;
+  const bagY: Map<string, number> = new Map();
+  for (let i = 0; i + 1 < y.length; i++) {
+    const gram: string = y.slice(i, i + 2);
+    const seen: number | undefined = bagY.get(gram);
+    bagY.set(gram, seen === undefined ? 1 : seen + 1);
+  }
+  bagY.forEach((count: number, gram: string) => {
+    total += count;
+    const other: number | undefined = bagX.get(gram);
+    if (other !== undefined) {
+      overlap += Math.min(count, other);
+    }
+  });
+  let sizeX: number = 0;
+  bagX.forEach((count: number) => {
+    sizeX += count;
+  });
+  if (sizeX + total === 0) {
+    return 0;
+  }
+  return (2 * overlap) / (sizeX + total);
+}

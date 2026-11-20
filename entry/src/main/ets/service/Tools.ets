@@ -438,7 +438,15 @@ export class ToolRunner {
     if (text.length === 0) {
       return fail('A non-empty "text" is required.', 'missing text');
     }
-    const entry: MemoryEntry | undefined = MemoryStore.add(text, ctx.session.id);
+    const rawKeywords: Array<Object> = args.arr('keywords');
+    const keywords: Array<string> = [];
+    for (let i = 0; i < rawKeywords.length && keywords.length < 4; i++) {
+      const value: Object = rawKeywords[i];
+      if (typeof value === 'string' && (value as string).trim().length > 0) {
+        keywords.push((value as string).trim());
+      }
+    }
+    const entry: MemoryEntry | undefined = MemoryStore.add(text, ctx.session.id, keywords);
     if (entry === undefined) {
       return fail('The memory was empty after trimming.', 'empty');
     }

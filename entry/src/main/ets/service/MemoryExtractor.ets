@@ -12,7 +12,7 @@
 import { AppSettings, BLOCK_TEXT, ChatSession, EVT_TEXT, ROLE_ASSISTANT, ROLE_USER, StreamEvent } from '../model/Types';
 import { CancelToken } from '../common/Cancel';
 import { Log } from '../common/Utils';
-import { parseFacts } from '../common/FactParse';
+import { parseFacts, ParsedFact } from '../common/FactParse';
 import { buildTranscript } from '../model/Transcript';
 import { LlmClient } from './LlmClient';
 import { MemoryEntry } from './MemoryStore';
@@ -38,7 +38,7 @@ export class MemoryExtractor {
   }
 
   /** Pull the JSON array out of a model response, tolerating fences and prose. */
-  static parseFacts(raw: string): Array<string> {
+  static parseFacts(raw: string): Array<ParsedFact> {
     return parseFacts(raw, MAX_FACTS, FACT_CHARS);
   }
 
@@ -53,7 +53,11 @@ export class MemoryExtractor {
     parts.push('- Only durable facts. Never transient task details, open questions, or anything the assistant said about itself.');
     parts.push('- Each fact: one self-contained sentence in the user\'s language, written as "The user ...".');
     parts.push(`- At most ${MAX_FACTS} facts. Fewer is better than padding.`);
-    parts.push('- Reply with a JSON array of strings and nothing else. Reply [] if nothing qualifies.');
+    parts.push('- Give each fact 2 to 4 "keywords": short alternative words a user might use when asking about it');
+    parts.push('  (synonyms, or the English and Chinese form of the same idea). Same language as the fact. No sentences.');
+    parts.push('- Reply with a JSON array and nothing else, in this shape:');
+    parts.push('  [{"fact": "The user is building a HarmonyOS port of DeepSeek Harness.", "keywords": ["鸿蒙", "移植", "HarmonyOS"]}]');
+    parts.push('- Reply [] if nothing qualifies.');
     if (existing.length > 0) {
       parts.push('');
       parts.push('Already remembered (do not repeat these):');
@@ -77,7 +81,7 @@ export class MemoryExtractor {
     apiKey: string,
     transcript: string,
     existing: Array<MemoryEntry>
-  ): Promise<Array<string>> {
+  ): Promise<Array<ParsedFact>> {
     if (apiKey.length === 0 || transcript.trim().length === 0) {
       return [];
     }
