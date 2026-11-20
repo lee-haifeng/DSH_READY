@@ -127,6 +127,22 @@ export struct SettingsSheet {
     this.systemPromptDraft = this.settings.systemPrompt;
     this.apiKeyDraft = '';
     this.editingKey = false;
+    this.reconcileApiKey();
+  }
+
+  /**
+   * 凭据库是密钥的唯一真相来源，preferences 里只缓存提示。两者不一致时以凭据库为准：
+   * 例如用户手动清空了凭据，或上一次写入在 flush 前被杀。
+   */
+  private async reconcileApiKey(): Promise<void> {
+    const hasKey: boolean = await SecretService.hasApiKey();
+    const hint: string = hasKey ? await SecretService.keyHint() : '';
+    if (hasKey === this.settings.hasApiKey && hint === this.settings.apiKeyHint) {
+      return;
+    }
+    const next: AppSettings = SettingsService.withApiKeyState(hasKey, hint);
+    SettingsService.save(next);
+    this.settings = next;
   }
 
   aboutToDisappear(): void {
