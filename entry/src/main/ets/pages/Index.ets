@@ -987,6 +987,9 @@ struct Index {
     .bindSheet($$this.sheetVisible, this.SheetContent(), {
       height: SheetSize.LARGE,
       dragBar: false,
+      // Defaults to true, which draws a system close glyph over the sheet's top-right
+      // corner — exactly where our own headers put their action buttons.
+      showClose: false,
       backgroundColor: this.palette.bg,
       onDisappear: () => {
         this.activeSheet = SHEET_NONE;
